@@ -1,6 +1,6 @@
-import { Stack } from "expo-router";
-import { AuthProvider, AuthContext } from "../src/context/AuthContext";
-import { useContext } from "react";
+import { Stack } from 'expo-router';
+import { AuthProvider, AuthContext } from '../src/context/AuthContext';
+import { useContext } from 'react';
 
 function RootNavigator() {
   const { user, isLoading } = useContext(AuthContext);
