@@ -11,8 +11,7 @@
     "lint": "eslint . --ext .js,.jsx",
     "lint:fix": "eslint . --ext .js,.jsx --fix",
     "format": "prettier --write .",
-    "fix": "npm run lint:fix && npm run format",
-  "push" : "npm run fix && git push -u origin main"
+    "fix": "npm run lint:fix && npm run format"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
