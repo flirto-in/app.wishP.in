@@ -1,13 +1,11 @@
-import { View, Text } from 'react-native';
+import { Redirect } from "expo-router";
+import { useContext } from "react";
+import { AuthContext } from "../src/context/AuthContext";
 
-import React from 'react';
+export default function Index() {
+  const { user } = useContext(AuthContext);
 
-const index = () => {
-  return (
-    <View>
-      <Text className="font-bold">index</Text>
-    </View>
-  );
-};
-
-export default index;
+  // Redirect based on login
+  if (user) return <Redirect href="(tabs)/home" />;
+  else return <Redirect href="auth/" />;
+}
