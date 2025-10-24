@@ -1,50 +1,71 @@
-# Welcome to your Expo app 👋
+# Authentication
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+    ### @api http://localhost:3000/api/v1/auth/send-otp
+    ### @method POST
+    ### @accept phoneNumber in body
+    ### @return otp sent to user phone number
 
-## Get started
 
-1. Install dependencies
 
-   ```bash
-   npm install
-   ```
+    ### @api http://localhost:3000/api/v1/auth/authentication
+    ### @method POST
+    ### @accept phoneNumber and otp in body
+    ### @return user data and access token
 
-2. Start the app
+# User
 
-   ```bash
-   npx expo start
-   ```
+    ### @api http://localhost:3000/api/v1/users/:id
+    ### @method GET
+    ### @accept userId from path params and auth token from headers
+    ### @return user profile data
 
-In the output, you'll find options to open the app in a
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+    ### @api http://localhost:3000/api/v1/users/:id
+    ### @method PATCH
+    ### @accept userId from path params and auth token from headers
+    ### @accept body: {U_Id, description}
+    ### @return updated user profile data
 
-## Get a fresh project
 
-When you're ready, run:
 
-```bash
-npm run reset-project
-```
+    ### @api http://localhost:3000/api/v1/users/:id/primaryChat
+    ### @method GET
+    ### @accept userId from path params and auth token from headers
+    ### @return list of primary chats (sent by user)
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
 
-## Learn more
 
-To learn more about developing your project with Expo, look at the following resources:
+    ### @api http://localhost:3000/api/v1/users/:id/secondaryChat
+    ### @method GET
+    ### @accept userId from path params and auth token from headers
+    ### @return list of secondary chats (received or pending)
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
 
-## Join the community
 
-Join our community of developers creating universal apps.
+    ### @api http://localhost:3000/api/v1/users/:id/chat/:chatId
+    ### @method PATCH
+    ### @accept userId and chatId from path params, auth token from headers
+    ### @accept body: {primaryChat, secondaryChat}
+    ### @return updated user chat info
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+# Messages
+
+    ### @api http://localhost:3000/api/v1/messages/search
+    ### @method GET
+    ### @accept query param: U_Id, auth token from headers
+    ### @return user info if found
+
+
+
+    ### @api http://localhost:3000/api/v1/messages/all
+    ### @method GET
+    ### @accept auth token from headers
+    ### @return list of all chats (primary + secondary)
+
+
+
+    ### @api http://localhost:3000/api/v1/messages/:userId/messages
+    ### @method GET
+    ### @accept userId from path params, auth token from headers
+    ### @return list of messages with specific user
