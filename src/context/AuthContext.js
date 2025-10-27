@@ -80,7 +80,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await userService.checkAuth();
       console.log('📱 User data response:', response);
-
+      
       // Based on your API response structure: { success: true, data: { user: {...} } }
       if (response.success && response.data?.user) {
         setUser(response.data.user); // Update context with fresh user data
@@ -93,6 +93,22 @@ export const AuthProvider = ({ children }) => {
     }
   }, []); // Empty deps - this function doesn't depend on any external values
 
+  const updateUserProfile = useCallback(async (description) => {
+    try {
+      const response = await userService.updateProfile(description);
+      console.log('📱 Update profile response:', response);
+      
+      if (response.success && response.data?.user) {
+        setUser(response.data.user); // Update context with new user data
+        return response.data.user;
+      }
+      throw new Error(response.message || 'Failed to update profile');
+    } catch (error) {
+      console.error('❌ Update profile error:', error);
+      throw error;
+    }
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -102,6 +118,7 @@ export const AuthProvider = ({ children }) => {
         verifyOTP,
         logout,
         getUser,
+        updateUserProfile,
       }}
     >
       {children}
