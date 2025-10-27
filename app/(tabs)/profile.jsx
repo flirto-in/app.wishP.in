@@ -63,7 +63,7 @@ export default function ProfileScreen() {
             {userData?.phoneNumber?.toString().charAt(0) || '?'}
           </Text>
         </View>
-        <Text className='text-red-500' style={{ fontSize: 24, fontWeight: 'bold'}}>
+        <Text className="text-red-500" style={{ fontSize: 24, fontWeight: 'bold' }}>
           {userData?.U_Id || 'Unknown User'}
         </Text>
       </View>
@@ -84,21 +84,15 @@ export default function ProfileScreen() {
           }}
         >
           <View style={{ marginBottom: 15 }}>
-            <Text style={{ fontSize: 12, color: '#666', marginBottom: 5 }}>
-              PHONE NUMBER
-            </Text>
+            <Text style={{ fontSize: 12, color: '#666', marginBottom: 5 }}>PHONE NUMBER</Text>
             <Text style={{ fontSize: 16, color: '#333', fontWeight: '500' }}>
               {userData.phoneNumber}
             </Text>
           </View>
 
           <View style={{ marginBottom: 15 }}>
-            <Text style={{ fontSize: 12, color: '#666', marginBottom: 5 }}>
-              USER ID
-            </Text>
-            <Text style={{ fontSize: 16, color: '#333', fontWeight: '500' }}>
-              {userData.U_Id}
-            </Text>
+            <Text style={{ fontSize: 12, color: '#666', marginBottom: 5 }}>USER ID</Text>
+            <Text style={{ fontSize: 16, color: '#333', fontWeight: '500' }}>{userData.U_Id}</Text>
           </View>
 
           <View style={{ marginBottom: 15 }}>
@@ -112,9 +106,7 @@ export default function ProfileScreen() {
             >
               <Text style={{ fontSize: 12, color: '#666' }}>DESCRIPTION</Text>
               <TouchableOpacity onPress={() => setModalVisible(true)}>
-                <Text style={{ fontSize: 14, color: '#007AFF', fontWeight: '600' }}>
-                  ✏️ Edit
-                </Text>
+                <Text style={{ fontSize: 14, color: '#007AFF', fontWeight: '600' }}>✏️ Edit</Text>
               </TouchableOpacity>
             </View>
             <Text style={{ fontSize: 16, color: '#333', lineHeight: 22 }}>
@@ -123,9 +115,7 @@ export default function ProfileScreen() {
           </View>
 
           <View>
-            <Text style={{ fontSize: 12, color: '#666', marginBottom: 5 }}>
-              STATUS
-            </Text>
+            <Text style={{ fontSize: 12, color: '#666', marginBottom: 5 }}>STATUS</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <View
                 style={{

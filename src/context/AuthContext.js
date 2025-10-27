@@ -80,7 +80,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await userService.checkAuth();
       console.log('📱 User data response:', response);
-      
+
       // Based on your API response structure: { success: true, data: { user: {...} } }
       if (response.success && response.data?.user) {
         setUser(response.data.user); // Update context with fresh user data
@@ -97,7 +97,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await userService.updateProfile(description);
       console.log('📱 Update profile response:', response);
-      
+
       if (response.success && response.data?.user) {
         setUser(response.data.user); // Update context with new user data
         return response.data.user;
