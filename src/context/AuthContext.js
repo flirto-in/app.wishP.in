@@ -1,5 +1,6 @@
-import { createContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useEffect, useState } from 'react';
 import { authService } from '../services/authService';
+import { userService } from '../services/user.service';
 
 export const AuthContext = createContext();
 
@@ -75,6 +76,23 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const getUser = useCallback(async () => {
+    try {
+      const response = await userService.checkAuth();
+      console.log('📱 User data response:', response);
+
+      // Based on your API response structure: { success: true, data: { user: {...} } }
+      if (response.success && response.data?.user) {
+        setUser(response.data.user); // Update context with fresh user data
+        return response.data.user;
+      }
+      return null;
+    } catch (error) {
+      console.error('❌ Get user error:', error);
+      throw error.response?.data || error;
+    }
+  }, []); // Empty deps - this function doesn't depend on any external values
+
   return (
     <AuthContext.Provider
       value={{
@@ -83,6 +101,7 @@ export const AuthProvider = ({ children }) => {
         sendOTP,
         verifyOTP,
         logout,
+        getUser,
       }}
     >
       {children}

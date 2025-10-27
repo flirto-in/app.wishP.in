@@ -27,7 +27,7 @@ export default function VerifyScreen() {
     if (result.success) {
       console.log('✅ Verification successful:', result.user);
       // Navigate to chat screen
-      router.replace('/(tabs)/chat');
+      router.replace('/(tabs)/profile');
     } else {
       console.error('❌ Verification failed:', result.error);
       Alert.alert('Verification Failed', result.error || 'Invalid OTP. Please try again.');
