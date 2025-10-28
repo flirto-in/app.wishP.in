@@ -1,5 +1,5 @@
 import { useCallback, useContext, useEffect, useState } from 'react';
-import { ActivityIndicator, Button, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import UserUpdateModal from '../../components/userUpadteModal';
 import { AuthContext } from '../../src/context/AuthContext';
 
@@ -37,96 +37,61 @@ export default function ProfileScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={{ marginTop: 10 }}>Loading profile...</Text>
+      <View className="flex-1 justify-center items-center bg-dark-bg">
+        <ActivityIndicator size="large" color="#3B82F6" />
+        <Text className="mt-2 text-dark-text-primary">Loading profile...</Text>
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1, padding: 20, backgroundColor: '#f5f5f5' }}>
+    <View className="flex-1 p-5 bg-dark-bg">
       {/* Header */}
-      <View style={{ alignItems: 'center', marginTop: 20, marginBottom: 30 }}>
-        <View
-          style={{
-            width: 100,
-            height: 100,
-            borderRadius: 50,
-            backgroundColor: '#007AFF',
-            justifyContent: 'center',
-            alignItems: 'center',
-            marginBottom: 15,
-          }}
-        >
-          <Text style={{ fontSize: 40, color: '#fff', fontWeight: 'bold' }}>
+      <View className="items-center mt-5 mb-8">
+        <View className="w-24 h-24 rounded-full bg-blue-500 justify-center items-center mb-4">
+          <Text className="text-4xl text-white font-bold">
             {userData?.phoneNumber?.toString().charAt(0) || '?'}
           </Text>
         </View>
-        <Text className="text-red-500" style={{ fontSize: 24, fontWeight: 'bold' }}>
+        <Text className="text-2xl font-bold text-dark-text-primary">
           {userData?.U_Id || 'Unknown User'}
         </Text>
       </View>
 
       {/* Profile Info Card */}
       {userData && (
-        <View
-          style={{
-            backgroundColor: '#fff',
-            borderRadius: 16,
-            padding: 20,
-            marginBottom: 20,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 3,
-          }}
-        >
-          <View style={{ marginBottom: 15 }}>
-            <Text style={{ fontSize: 12, color: '#666', marginBottom: 5 }}>PHONE NUMBER</Text>
-            <Text style={{ fontSize: 16, color: '#333', fontWeight: '500' }}>
+        <View className="bg-dark-surface rounded-2xl p-5 mb-5 shadow-lg">
+          <View className="mb-4">
+            <Text className="text-xs text-dark-text-muted mb-1">PHONE NUMBER</Text>
+            <Text className="text-base text-dark-text-primary font-medium">
               {userData.phoneNumber}
             </Text>
           </View>
 
-          <View style={{ marginBottom: 15 }}>
-            <Text style={{ fontSize: 12, color: '#666', marginBottom: 5 }}>USER ID</Text>
-            <Text style={{ fontSize: 16, color: '#333', fontWeight: '500' }}>{userData.U_Id}</Text>
+          <View className="mb-4">
+            <Text className="text-xs text-dark-text-muted mb-1">USER ID</Text>
+            <Text className="text-base text-dark-text-primary font-medium">{userData.U_Id}</Text>
           </View>
 
-          <View style={{ marginBottom: 15 }}>
-            <View
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: 5,
-              }}
-            >
-              <Text style={{ fontSize: 12, color: '#666' }}>DESCRIPTION</Text>
+          <View className="mb-4">
+            <View className="flex-row justify-between items-center mb-1">
+              <Text className="text-xs text-dark-text-muted">DESCRIPTION</Text>
               <TouchableOpacity onPress={() => setModalVisible(true)}>
-                <Text style={{ fontSize: 14, color: '#007AFF', fontWeight: '600' }}>✏️ Edit</Text>
+                <Text className="text-sm text-dark-accent-blue font-semibold">✏️ Edit</Text>
               </TouchableOpacity>
             </View>
-            <Text style={{ fontSize: 16, color: '#333', lineHeight: 22 }}>
+            <Text className="text-base text-dark-text-primary leading-6">
               {userData.description || 'No description added yet'}
             </Text>
           </View>
 
           <View>
-            <Text style={{ fontSize: 12, color: '#666', marginBottom: 5 }}>STATUS</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <View
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: 4,
-                  backgroundColor: userData.online ? '#34C759' : '#8E8E93',
-                  marginRight: 8,
-                }}
-              />
-              <Text style={{ fontSize: 16, fontWeight: '500' }}>
+            <Text className="text-xs text-dark-text-muted mb-1">STATUS</Text>
+            <View className="flex-row items-center">
+              <View className={`w-2 h-2 rounded-full mr-2 ${
+                userData.online ? 'bg-green-500' : 'bg-gray-500'
+              }`} />
+              <Text className="text-base font-medium text-dark-text-primary">
                 {userData.online ? 'Online' : 'Offline'}
               </Text>
             </View>
@@ -135,8 +100,13 @@ export default function ProfileScreen() {
       )}
 
       {/* Logout Button */}
-      <View style={{ marginTop: 'auto', marginBottom: 20 }}>
-        <Button title="Logout" onPress={logout} color="#FF3B30" />
+      <View className="mt-auto mb-5">
+        <TouchableOpacity 
+          onPress={logout}
+          className="bg-red-600 rounded-xl py-4 items-center"
+        >
+          <Text className="text-white font-bold text-base">Logout</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Update Modal */}

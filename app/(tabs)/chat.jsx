@@ -1,5 +1,5 @@
-import { View, Text, FlatList, ActivityIndicator } from 'react-native';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, Text, View } from 'react-native';
 import { chatService } from '../../src/services/chatService';
 
 export default function ChatScreen() {
@@ -23,21 +23,21 @@ export default function ChatScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
+      <View className="flex-1 justify-center items-center bg-dark-bg">
+        <ActivityIndicator size="large" color="#3B82F6" />
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1, padding: 20 }}>
-      <Text style={{ fontSize: 20, marginBottom: 10 }}>Your Chats</Text>
+    <View className="flex-1 p-5 bg-dark-bg">
+      <Text className="text-xl mb-3 text-dark-text-primary font-bold">Your Chats</Text>
       <FlatList
         data={chats}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <View style={{ padding: 10, borderBottomWidth: 1 }}>
-            <Text>{item.name}</Text>
+          <View className="p-3 border-b border-dark-border">
+            <Text className="text-dark-text-primary">{item.name}</Text>
           </View>
         )}
       />

@@ -1,9 +1,9 @@
-import { View, Text } from 'react-native';
+import { Text, View } from 'react-native';
 
 export default function TempSessionScreen() {
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <Text>Temporary Chat Session with XYZ</Text>
+    <View className="flex-1 justify-center items-center bg-dark-bg">
+      <Text className="text-dark-text-primary text-lg">Temporary Chat Session with XYZ</Text>
     </View>
   );
 }

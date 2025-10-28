@@ -109,25 +109,25 @@ export default function VerifyScreen() {
   };
 
   return (
-    <View className="flex-1 bg-gradient-to-br from-blue-50 to-indigo-100">
+    <View className="flex-1 bg-dark-bg dark">
       <View className="flex-1 justify-center px-6">
         {/* Header */}
         <View className="items-center mb-10">
-          <View className="w-24 h-24 bg-blue-500 rounded-full items-center justify-center mb-4">
+          <View className="w-24 h-24 bg-dark-accent-blue rounded-full items-center justify-center mb-4 shadow-lg">
             <Text className="text-5xl">🔐</Text>
           </View>
-          <Text className="text-3xl font-bold text-gray-800 mb-2">Verify OTP</Text>
-          <Text className="text-base text-gray-600 text-center px-6">
+          <Text className="text-3xl font-bold text-dark-text-primary mb-2">Verify OTP</Text>
+          <Text className="text-base text-dark-text-secondary text-center px-6">
             We&apos;ve sent a 4-digit code to
           </Text>
-          <Text className="text-base font-semibold text-gray-800 mt-1">
+          <Text className="text-base font-semibold text-dark-text-primary mt-1">
             {formatPhoneNumber(phone)}
           </Text>
         </View>
 
         {/* OTP Input Card */}
-        <View className="bg-white rounded-2xl p-6 shadow-lg mb-6">
-          <Text className="text-sm font-semibold text-gray-700 mb-4 text-center">
+        <View className="bg-dark-surface rounded-2xl p-6 shadow-xl border border-dark-border mb-6">
+          <Text className="text-sm font-semibold text-dark-text-primary mb-4 text-center">
             Enter Verification Code
           </Text>
 
@@ -146,9 +146,10 @@ export default function VerifyScreen() {
                 selectTextOnFocus
                 className={`w-12 h-14 border-2 rounded-xl text-center text-xl font-bold ${
                   digit
-                    ? 'border-blue-500 bg-blue-50 text-blue-700'
-                    : 'border-gray-300 bg-gray-50 text-gray-800'
+                    ? 'border-dark-accent-blue bg-dark-accent-blue/20 text-dark-accent-blue'
+                    : 'border-dark-border bg-dark-card text-dark-text-primary'
                 }`}
+                placeholderTextColor="#808080"
               />
             ))}
           </View>
@@ -158,7 +159,7 @@ export default function VerifyScreen() {
             onPress={() => handleVerify()}
             disabled={loading || otp.join('').length < 4}
             className={`rounded-xl py-4 items-center ${
-              loading || otp.join('').length < 4 ? 'bg-gray-300' : 'bg-blue-500'
+              loading || otp.join('').length < 4 ? 'bg-dark-border' : 'bg-blue-500'
             }`}
           >
             {loading ? (
@@ -172,11 +173,11 @@ export default function VerifyScreen() {
           <View className="items-center mt-4">
             {canResend ? (
               <TouchableOpacity onPress={handleResendOTP} disabled={loading}>
-                <Text className="text-blue-500 font-semibold text-sm">Resend OTP</Text>
+                <Text className="text-dark-accent-blue font-semibold text-sm">Resend OTP</Text>
               </TouchableOpacity>
             ) : (
-              <Text className="text-gray-500 text-sm">
-                Resend OTP in <Text className="font-bold text-gray-700">{timer}s</Text>
+              <Text className="text-dark-text-muted text-sm">
+                Resend OTP in <Text className="font-bold text-dark-text-secondary">{timer}s</Text>
               </Text>
             )}
           </View>
@@ -188,11 +189,11 @@ export default function VerifyScreen() {
           disabled={loading}
           className="items-center py-3"
         >
-          <Text className="text-gray-600 font-semibold">← Change Phone Number</Text>
+          <Text className="text-dark-text-secondary font-semibold">← Change Phone Number</Text>
         </TouchableOpacity>
 
         {/* Helper Text */}
-        <Text className="text-xs text-gray-500 text-center mt-6 px-8">
+        <Text className="text-xs text-dark-text-muted text-center mt-6 px-8">
           Didn&apos;t receive the code? Check your phone or try resending
         </Text>
       </View>

@@ -85,56 +85,56 @@ export default function AuthScreen() {
   };
 
   return (
-    <View className="flex-1 bg-gradient-to-br from-blue-50 to-indigo-100">
+    <View className="flex-1 bg-dark-bg dark">
       <View className="flex-1 justify-center px-6">
         {/* Header */}
         <View className="items-center mb-10">
-          <View className="w-20 h-20 bg-blue-500 rounded-full items-center justify-center mb-4">
+          <View className="w-20 h-20 bg-dark-accent-blue rounded-full items-center justify-center mb-4 shadow-lg">
             <Text className="text-4xl">💬</Text>
           </View>
-          <Text className="text-3xl font-bold text-gray-800 mb-2">Welcome</Text>
-          <Text className="text-base text-gray-600 text-center">
+          <Text className="text-3xl font-bold text-dark-text-primary mb-2">Welcome</Text>
+          <Text className="text-base text-dark-text-secondary text-center">
             Enter your phone number to get started
           </Text>
         </View>
 
         {/* Phone Input Card */}
-        <View className="bg-white rounded-2xl p-6 shadow-lg mb-6">
-          <Text className="text-sm font-semibold text-gray-700 mb-3">Phone Number</Text>
+        <View className="bg-dark-surface rounded-2xl p-6 shadow-xl border border-dark-border mb-6">
+          <Text className="text-sm font-semibold text-dark-text-primary mb-3">Phone Number</Text>
 
           {/* Country Selector */}
           <TouchableOpacity
             onPress={() => setShowCountryPicker(!showCountryPicker)}
-            className="flex-row items-center border border-gray-300 rounded-xl p-4 mb-3 bg-gray-50"
+            className="flex-row items-center border border-dark-border rounded-xl p-4 mb-3 bg-dark-card"
             disabled={loading}
           >
             <Text className="text-2xl mr-2">{selectedCountry.flag}</Text>
-            <Text className="text-base font-semibold text-gray-800 flex-1">
+            <Text className="text-base font-semibold text-dark-text-primary flex-1">
               {selectedCountry.name} ({selectedCountry.code})
             </Text>
-            <Text className="text-gray-400">▼</Text>
+            <Text className="text-dark-text-muted">▼</Text>
           </TouchableOpacity>
 
           {/* Country Picker Dropdown */}
           {showCountryPicker && (
-            <View className="bg-white border border-gray-200 rounded-xl mb-3 max-h-64 overflow-hidden">
+            <View className="bg-dark-surface border border-dark-border rounded-xl mb-3 max-h-64 overflow-hidden shadow-lg">
               {COUNTRIES.map((country) => (
                 <TouchableOpacity
                   key={country.code}
                   onPress={() => handleCountrySelect(country)}
-                  className={`flex-row items-center p-4 border-b border-gray-100 ${
-                    selectedCountry.code === country.code ? 'bg-blue-50' : ''
+                  className={`flex-row items-center p-4 border-b border-dark-border ${
+                    selectedCountry.code === country.code ? 'bg-dark-accent-blue/20' : ''
                   }`}
                 >
                   <Text className="text-2xl mr-3">{country.flag}</Text>
                   <View className="flex-1">
-                    <Text className="text-base font-semibold text-gray-800">{country.name}</Text>
-                    <Text className="text-xs text-gray-500">
+                    <Text className="text-base font-semibold text-dark-text-primary">{country.name}</Text>
+                    <Text className="text-xs text-dark-text-muted">
                       {country.code} • {country.format}
                     </Text>
                   </View>
                   {selectedCountry.code === country.code && (
-                    <Text className="text-blue-500 text-xl">✓</Text>
+                    <Text className="text-dark-accent-blue text-xl">✓</Text>
                   )}
                 </TouchableOpacity>
               ))}
@@ -142,23 +142,24 @@ export default function AuthScreen() {
           )}
 
           {/* Phone Number Input */}
-          <View className="flex-row items-center border border-gray-300 rounded-xl bg-gray-50 overflow-hidden">
-            <View className="px-4 py-4 bg-gray-100 border-r border-gray-300">
-              <Text className="text-base font-semibold text-gray-700">{selectedCountry.code}</Text>
+          <View className="flex-row items-center border border-dark-border rounded-xl bg-dark-card overflow-hidden">
+            <View className="px-4 py-4 bg-dark-border/30 border-r border-dark-border">
+              <Text className="text-base font-semibold text-dark-text-secondary">{selectedCountry.code}</Text>
             </View>
             <TextInput
               placeholder={selectedCountry.format}
+              placeholderTextColor="#808080"
               value={phone}
               onChangeText={handlePhoneChange}
               keyboardType="number-pad"
               editable={!loading}
               maxLength={selectedCountry.maxLength}
-              className="flex-1 px-4 py-4 text-base text-gray-800"
+              className="flex-1 px-4 py-4 text-base text-dark-text-primary"
             />
           </View>
 
           {/* Helper Text */}
-          <Text className="text-xs text-gray-500 mt-2">
+          <Text className="text-xs text-dark-text-muted mt-2">
             {phone.length}/{selectedCountry.maxLength} digits • Min: {selectedCountry.minLength}
           </Text>
         </View>
@@ -167,19 +168,21 @@ export default function AuthScreen() {
         <TouchableOpacity
           onPress={handleSendOTP}
           disabled={loading || phone.length < selectedCountry.minLength}
-          className={`rounded-xl py-4 items-center shadow-md ${
-            loading || phone.length < selectedCountry.minLength ? 'bg-gray-300' : 'bg-blue-500'
+          className={`rounded-xl py-4 items-center shadow-lg ${
+            loading || phone.length < selectedCountry.minLength 
+              ? 'bg-dark-border' 
+              : 'bg-dark-accent-blue'
           }`}
         >
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color="#ffffff" />
           ) : (
             <Text className="text-white text-base font-bold">Send OTP</Text>
           )}
         </TouchableOpacity>
 
         {/* Footer */}
-        <Text className="text-xs text-gray-500 text-center mt-6">
+        <Text className="text-xs text-dark-text-muted text-center mt-6">
           By continuing, you agree to our Terms of Service and Privacy Policy
         </Text>
       </View>
