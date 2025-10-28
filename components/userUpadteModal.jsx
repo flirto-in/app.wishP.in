@@ -32,7 +32,7 @@ export default function UserUpdateModal({ visible, onClose, currentDescription, 
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View className="flex-1 justify-center items-center bg-black/50">
         <View className="bg-white rounded-2xl w-11/12 max-w-md p-6 shadow-lg">
           {/* Header */}

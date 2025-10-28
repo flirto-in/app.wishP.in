@@ -10,19 +10,26 @@ export const AuthProvider = ({ children }) => {
 
   // Check for existing session on app start
   useEffect(() => {
+    console.log('🔄 App mounted - checking for existing session...');
     checkStoredSession();
   }, []);
 
   const checkStoredSession = async () => {
     try {
+      console.log('🔍 Checking stored session...');
       const userData = await authService.checkAuth();
+
       if (userData) {
+        console.log('✅ Session restored for user:', userData.U_Id);
         setUser(userData);
+      } else {
+        console.log('❌ No valid session found');
       }
     } catch (error) {
-      console.error('Session check failed:', error);
+      console.error('❌ Session check failed:', error);
     } finally {
       setIsLoading(false);
+      console.log('✅ Auth check complete');
     }
   };
 
@@ -67,10 +74,12 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
+      console.log('🚪 Logout initiated...');
       await authService.logout();
       setUser(null);
+      console.log('✅ User logged out successfully');
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error('❌ Logout error:', error);
       // Still clear user state even if API fails
       setUser(null);
     }

@@ -6,6 +6,6 @@ export default function Index() {
   const { user } = useContext(AuthContext);
 
   // Redirect based on login
-  if (user) return <Redirect href="(tabs)/home" />;
+  if (user) return <Redirect href="(tabs)/profile" />;
   else return <Redirect href="auth/" />;
 }
