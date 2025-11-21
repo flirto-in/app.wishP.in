@@ -384,7 +384,7 @@ export function ChatProvider({ children }) {
         } else {
           // Check if chat is muted before showing notification
           const isChatMuted = mutedChats.has(senderId);
-          
+
           if (!isChatMuted) {
             // Show notification if not viewing this chat and not muted
             console.log('📲 Showing notification for message from:', senderName);

@@ -5,10 +5,10 @@ import { io } from 'socket.io-client';
 const getSocketURL = () => {
   // For development, use localhost for web/emulator, network IP for physical device
   const NETWORK_IP = '10.59.76.54';
-  const LOCALHOST_IP = 'localhost';
+  // Removed unused LOCALHOST_IP to satisfy lint rule
 
   // Using NETWORK_IP for physical device (Expo Go)
-  const SERVER_IP = NETWORK_IP; // Use LOCALHOST_IP for web/emulator
+  const SERVER_IP = NETWORK_IP; // Use 'localhost' for web/emulator if needed
 
   return `http://${SERVER_IP}:8000`;
 };

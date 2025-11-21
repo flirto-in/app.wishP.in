@@ -5,13 +5,15 @@ import {
   Alert,
   Animated,
   FlatList,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { ChatContext } from '../src/context/ChatContext';
 
 export default function ChatConversationScreen() {
@@ -38,8 +40,10 @@ export default function ChatConversationScreen() {
 
   const [messageText, setMessageText] = useState('');
   const [typingTimeout, setTypingTimeout] = useState(null);
-  const [selfDestructSeconds, setSelfDestructSeconds] = useState(0);
+  // Removed self-destruct feature for cleaner modern UI
   const [inputHeight, setInputHeight] = useState(40);
+  const insets = useSafeAreaInsets();
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const flatListRef = useRef(null);
   const inputRef = useRef(null);
   const sendButtonScale = useRef(new Animated.Value(0.8)).current;
@@ -80,14 +84,27 @@ export default function ChatConversationScreen() {
     }
   }, [messages]);
 
-  // Auto scroll when keyboard appears (new message being typed)
+  // Keyboard height tracking (Android & iOS)
   useEffect(() => {
-    if (messageText.length > 0) {
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-    }
-  }, [inputHeight, messageText.length]);
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates?.height || 0);
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 60);
+      },
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 30);
+      },
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const handleTyping = () => {
     if (typingTimeout) {
@@ -128,28 +145,18 @@ export default function ChatConversationScreen() {
       }),
     ]).start();
 
-    // Prepare self-destruct settings
-    let selfDestruct = null;
-    if (selfDestructSeconds > 0) {
-      selfDestruct = {
-        enabled: true,
-        ttlSeconds: selfDestructSeconds,
-      };
-    }
+    // Send message without legacy self-destruct option
+    sendMessage(messageText.trim());
 
-    // Try to send the message
-    sendMessage(messageText, selfDestruct);
-
-    // Clear input only if message was sent or attempted
+    // Clear input
     setMessageText('');
-    setSelfDestructSeconds(0);
     setInputHeight(40); // Reset input height
     stopTyping();
 
-    // Auto scroll after sending
+    // Keep keyboard open and scroll to bottom
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
-    }, 50);
+    }, 100);
 
     if (typingTimeout) {
       clearTimeout(typingTimeout);
@@ -196,9 +203,9 @@ export default function ChatConversationScreen() {
           if (!isDeleted) {
             Alert.alert('Message Options', 'Choose an action:', [
               { text: 'Cancel', style: 'cancel' },
-              { text: '❤️ React', onPress: () => handleReactToMessage(message._id) },
+              { text: 'React', onPress: () => handleReactToMessage(message._id) },
               {
-                text: '🗑️ Delete',
+                text: 'Delete',
                 onPress: () => handleDeleteMessage(message._id, isMyMessage),
                 style: 'destructive',
               },
@@ -229,9 +236,15 @@ export default function ChatConversationScreen() {
             </Text>
 
             {isMyMessage && !isDeleted && (
-              <Text className="text-xs text-blue-100 ml-2">
-                {message.read ? '✓✓' : message.deliveryStatus === 'delivered' ? '✓✓' : '✓'}
-              </Text>
+              <View className="ml-2">
+                {message.read ? (
+                  <Ionicons name="checkmark-done" size={14} color="#DBEAFE" />
+                ) : message.deliveryStatus === 'delivered' ? (
+                  <Ionicons name="checkmark-done" size={14} color="#DBEAFE" />
+                ) : (
+                  <Ionicons name="checkmark" size={14} color="#DBEAFE" />
+                )}
+              </View>
             )}
           </View>
 
@@ -254,22 +267,22 @@ export default function ChatConversationScreen() {
   const userTyping = activeChat && typingUsers.has(activeChat._id);
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1 bg-dark-bg"
-      keyboardVerticalOffset={0}
-    >
+    <View className="flex-1 bg-dark-bg">
       {/* Header */}
-      <View className="bg-dark-surface border-b border-dark-border px-4 py-3 pt-12">
+      <View className="bg-dark-surface border-b border-dark-border px-4 py-3 pt-6">
         <View className="flex-row items-center justify-between">
           <View className="flex-row items-center flex-1">
             <TouchableOpacity onPress={() => router.back()} className="mr-3">
-              <Text className="text-dark-accent-blue text-lg">←</Text>
+              <Ionicons name="chevron-back" size={24} color="#3B82F6" />
             </TouchableOpacity>
 
             <View className="w-10 h-10 rounded-full bg-blue-500 justify-center items-center mr-3">
               <Text className="text-white font-bold text-lg">
-                {isRoomMode ? '🏠' : userName?.charAt(0)?.toUpperCase() || '?'}
+                {isRoomMode ? (
+                  <Ionicons name="home" size={20} color="#fff" />
+                ) : (
+                  userName?.charAt(0)?.toUpperCase() || '?'
+                )}
               </Text>
             </View>
 
@@ -299,138 +312,114 @@ export default function ChatConversationScreen() {
       </View>
 
       {/* Messages */}
-      {loading ? (
-        <View className="flex-1 justify-center items-center">
-          <ActivityIndicator size="large" color="#3B82F6" />
-        </View>
-      ) : (
-        <>
-          <FlatList
-            ref={flatListRef}
-            data={messages}
-            renderItem={renderMessage}
-            keyExtractor={(item, index) =>
-              item._id ? `${item._id}-${index}` : `msg-${index}-${item.createdAt || Date.now()}`
-            }
-            contentContainerClassName="py-4"
-            ListEmptyComponent={
-              <View className="flex-1 justify-center items-center py-20">
-                <Text className="text-6xl mb-4">💬</Text>
-                <Text className="text-dark-text-primary text-lg font-semibold mb-2">
-                  No messages yet
-                </Text>
-                <Text className="text-dark-text-muted text-center px-10">
-                  Start the conversation by sending a message
-                </Text>
-              </View>
-            }
-          />
-
-          {/* Typing Indicator */}
-          {userTyping && (
-            <View className="px-4 py-2">
-              <Text className="text-dark-text-muted text-sm italic">{userName} is typing...</Text>
-            </View>
-          )}
-        </>
-      )}
-
-      {/* Message Input */}
-      <View className="bg-dark-surface border-t border-dark-border p-3">
-        {/* Self-destruct timer */}
-        {selfDestructSeconds > 0 && (
-          <View className="mb-2 px-3 py-1 bg-red-100 rounded-full">
-            <Text className="text-red-800 text-xs text-center">
-              🔥 Self-destruct in {selfDestructSeconds}s
-            </Text>
+      <View style={{ flex: 1 }}>
+        {loading ? (
+          <View className="flex-1 justify-center items-center">
+            <ActivityIndicator size="large" color="#3B82F6" />
           </View>
-        )}
-
-        {/* Timer buttons */}
-        <View className="flex-row justify-center mb-2 space-x-2">
-          {[10, 30, 60].map((seconds) => (
-            <TouchableOpacity
-              key={seconds}
-              onPress={() => setSelfDestructSeconds(seconds)}
-              className={`px-3 py-1 rounded-full ${
-                selfDestructSeconds === seconds ? 'bg-red-500' : 'bg-gray-600'
-              }`}
-            >
-              <Text
-                className={`text-xs ${
-                  selfDestructSeconds === seconds ? 'text-white' : 'text-gray-300'
-                }`}
-              >
-                {seconds}s
-              </Text>
-            </TouchableOpacity>
-          ))}
-          <TouchableOpacity
-            onPress={() => setSelfDestructSeconds(0)}
-            className={`px-3 py-1 rounded-full ${
-              selfDestructSeconds === 0 ? 'bg-green-500' : 'bg-gray-600'
-            }`}
-          >
-            <Text
-              className={`text-xs ${selfDestructSeconds === 0 ? 'text-white' : 'text-gray-300'}`}
-            >
-              ∞
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View className="flex-row items-end">
-          {/* Emoji Shortcuts */}
-          <View className="flex-row mb-2 mr-2">
-            {['😊', '👍', '❤️'].map((emoji) => (
-              <TouchableOpacity
-                key={emoji}
-                onPress={() => setMessageText((prev) => prev + emoji)}
-                className="p-1 mr-1"
-              >
-                <Text className="text-lg">{emoji}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <View className="flex-1 bg-dark-card rounded-2xl px-4 py-2 border border-dark-border mr-2">
-            <TextInput
-              ref={inputRef}
-              value={messageText}
-              onChangeText={(text) => {
-                setMessageText(text);
-                handleTyping();
-              }}
-              onContentSizeChange={(event) => {
-                const newHeight = Math.max(40, Math.min(120, event.nativeEvent.contentSize.height));
-                setInputHeight(newHeight);
-              }}
-              placeholder="Type a message..."
-              placeholderTextColor="#666666"
-              className="text-dark-text-primary text-base"
-              style={{ height: inputHeight, textAlignVertical: 'top' }}
-              multiline
-              maxLength={1000}
-              blurOnSubmit={false}
-              onSubmitEditing={handleSendMessage}
-              returnKeyType="send"
+        ) : (
+          <>
+            <FlatList
+              ref={flatListRef}
+              data={messages}
+              renderItem={renderMessage}
+              keyExtractor={(item, index) =>
+                item._id ? `${item._id}-${index}` : `msg-${index}-${item.createdAt || Date.now()}`
+              }
+              contentContainerStyle={{ paddingVertical: 16, paddingBottom: 96 }}
+              keyboardDismissMode="interactive"
+              keyboardShouldPersistTaps="handled"
+              onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+              onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
+              ListEmptyComponent={
+                <View className="flex-1 justify-center items-center py-20">
+                  <Ionicons
+                    name="chatbubbles-outline"
+                    size={64}
+                    color="#6B7280"
+                    style={{ marginBottom: 16 }}
+                  />
+                  <Text className="text-dark-text-primary text-lg font-semibold mb-2">
+                    No messages yet
+                  </Text>
+                  <Text className="text-dark-text-muted text-center px-10">
+                    Start the conversation by sending a message
+                  </Text>
+                </View>
+              }
             />
-          </View>
 
-          <Animated.View style={{ transform: [{ scale: sendButtonScale }] }}>
-            <TouchableOpacity
-              onPress={handleSendMessage}
-              disabled={!messageText.trim()}
-              className={`rounded-full w-12 h-12 justify-center items-center ${
-                messageText.trim() ? 'bg-blue-500' : 'bg-dark-border'
-              }`}
-              activeOpacity={0.7}
-            >
-              <Text className="text-white font-bold text-lg">➤</Text>
+            {/* Typing Indicator */}
+            {userTyping && (
+              <View className="px-4 py-2">
+                <Text className="text-dark-text-muted text-sm italic">{userName} is typing...</Text>
+              </View>
+            )}
+          </>
+        )}
+      </View>
+
+      {/* Modern Input Bar (dynamic bottom offset) */}
+      <View
+        style={{
+          paddingBottom: keyboardHeight > 0 ? 0 : insets.bottom || 8,
+          marginBottom: keyboardHeight > 0 ? keyboardHeight : 0,
+        }}
+      >
+        <View className="mx-3 bg-dark-surface/95 rounded-3xl px-4 pt-3 pb-3 shadow-lg border border-dark-border">
+          <View className="flex-row items-end">
+            {/* Leading actions */}
+            <TouchableOpacity className="mr-3" onPress={() => {}} activeOpacity={0.7}>
+              <Ionicons name="add-circle-outline" size={26} color="#3B82F6" />
             </TouchableOpacity>
-          </Animated.View>
+            <TouchableOpacity className="mr-3" onPress={() => {}} activeOpacity={0.7}>
+              <Ionicons name="happy-outline" size={26} color="#3B82F6" />
+            </TouchableOpacity>
+
+            {/* Input */}
+            <View className="flex-1 mr-3">
+              <TextInput
+                ref={inputRef}
+                value={messageText}
+                onChangeText={(text) => {
+                  setMessageText(text);
+                  handleTyping();
+                }}
+                onContentSizeChange={(event) => {
+                  const newHeight = Math.max(
+                    40,
+                    Math.min(120, event.nativeEvent.contentSize.height),
+                  );
+                  setInputHeight(newHeight);
+                }}
+                placeholder="Message"
+                placeholderTextColor="#6B7280"
+                className="text-dark-text-primary text-base"
+                style={{ height: inputHeight, textAlignVertical: 'top' }}
+                multiline
+                maxLength={1000}
+                returnKeyType="send"
+                blurOnSubmit={false}
+                onSubmitEditing={() => messageText.trim() && handleSendMessage()}
+              />
+            </View>
+
+            {/* Send button */}
+            <Animated.View style={{ transform: [{ scale: sendButtonScale }] }}>
+              <TouchableOpacity
+                onPress={handleSendMessage}
+                disabled={!messageText.trim()}
+                className={`w-12 h-12 rounded-full justify-center items-center ${
+                  messageText.trim() ? 'bg-blue-600' : 'bg-dark-border'
+                }`}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="send" size={20} color="#fff" />
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
         </View>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }

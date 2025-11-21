@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import UserProfileModal from '../../components/UserProfileModal';
 import { userService } from '../../src/services/user.service';
 
@@ -82,7 +83,7 @@ export default function ExploreScreen() {
             {loading ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Text style={styles.searchButtonText}>🔍</Text>
+              <Ionicons name="search" size={20} color="#fff" />
             )}
           </TouchableOpacity>
         </View>
@@ -134,7 +135,7 @@ export default function ExploreScreen() {
           </View>
         ) : (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>🔍</Text>
+            <Ionicons name="search" size={64} color="#6B7280" style={{ marginBottom: 16 }} />
             <Text style={styles.emptyTitle}>Search for Users</Text>
             <Text style={styles.emptySubtitle}>
               Enter a User ID to find and connect with other users

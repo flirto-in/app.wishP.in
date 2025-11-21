@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useContext, useState } from 'react';
 import { ActivityIndicator, Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../../src/context/AuthContext';
 
 // Country codes with their phone number formats
@@ -103,7 +104,7 @@ export default function AuthScreen() {
         {/* Header */}
         <View className="items-center mb-10">
           <View className="w-20 h-20 bg-dark-accent-blue rounded-full items-center justify-center mb-4 shadow-lg">
-            <Text className="text-4xl">💬</Text>
+            <Ionicons name="chatbubbles" size={40} color="#fff" />
           </View>
           <Text className="text-3xl font-bold text-dark-text-primary mb-2">Welcome</Text>
           <Text className="text-base text-dark-text-secondary text-center">
