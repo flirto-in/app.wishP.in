@@ -61,12 +61,12 @@ export default function ProfileScreen() {
       {/* Profile Info Card */}
       {userData && (
         <View className="bg-dark-surface rounded-2xl p-5 mb-5 shadow-lg">
-          <View className="mb-4">
+          {/* <View className="mb-4">
             <Text className="text-xs text-dark-text-muted mb-1">PHONE NUMBER</Text>
             <Text className="text-base text-dark-text-primary font-medium">
               {userData.phoneNumber}
             </Text>
-          </View>
+          </View> */}
 
           <View className="mb-4">
             <Text className="text-xs text-dark-text-muted mb-1">USER ID</Text>
@@ -88,9 +88,11 @@ export default function ProfileScreen() {
           <View>
             <Text className="text-xs text-dark-text-muted mb-1">STATUS</Text>
             <View className="flex-row items-center">
-              <View className={`w-2 h-2 rounded-full mr-2 ${
-                userData.online ? 'bg-green-500' : 'bg-gray-500'
-              }`} />
+              <View
+                className={`w-2 h-2 rounded-full mr-2 ${
+                  userData.online ? 'bg-green-500' : 'bg-gray-500'
+                }`}
+              />
               <Text className="text-base font-medium text-dark-text-primary">
                 {userData.online ? 'Online' : 'Offline'}
               </Text>
@@ -101,10 +103,7 @@ export default function ProfileScreen() {
 
       {/* Logout Button */}
       <View className="mt-auto mb-5">
-        <TouchableOpacity 
-          onPress={logout}
-          className="bg-red-600 rounded-xl py-4 items-center"
-        >
+        <TouchableOpacity onPress={logout} className="bg-red-600 rounded-xl py-4 items-center">
           <Text className="text-white font-bold text-base">Logout</Text>
         </TouchableOpacity>
       </View>

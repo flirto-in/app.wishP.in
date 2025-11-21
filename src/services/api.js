@@ -1,9 +1,22 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
+// Network configuration - change based on your setup
+const getServerURL = () => {
+  // For development, use localhost for web/emulator, network IP for physical device
+  // Change this IP to your actual network IP when testing on physical device
+  const NETWORK_IP = '10.59.76.54';
+  const LOCALHOST_IP = 'localhost';
+
+  // Using NETWORK_IP for physical device (Expo Go)
+  const SERVER_IP = NETWORK_IP; // Use LOCALHOST_IP for web/emulator
+
+  return `http://${SERVER_IP}:8000/api/v1`;
+};
+
 // Create axios instance with base configuration
 const api = axios.create({
-  baseURL: 'https://flirto.onrender.com/api/v1', // ✅ Replace with your API URL
+  baseURL: getServerURL(), // Dynamic server URL
   timeout: 10000, // 10 seconds
   headers: {
     'Content-Type': 'application/json',
@@ -17,7 +30,9 @@ api.interceptors.request.use(
     try {
       // Skip auth header for authentication endpoints
       const isAuthEndpoint =
-        config.url?.includes('/auth/authentication') || config.url?.includes('/auth/send-otp');
+        config.url?.includes('/auth/authentication') ||
+        config.url?.includes('/auth/send-otp') ||
+        config.url?.includes('/auth/temp-session');
 
       if (!isAuthEndpoint) {
         // Get token from secure storage

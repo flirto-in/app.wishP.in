@@ -34,4 +34,49 @@ export const userService = {
       throw error.response?.data || error;
     }
   },
+
+  /**
+   * @api /messages/search?uid=:uId    ✅
+   * @method GET
+   * @accept auth token from headers
+   * @param uId - User ID to search for
+   * @return user profile data (name, avatar, bio)
+   */
+  getUserByUId: async (uId) => {
+    try {
+      const response = await api.get(`/messages/search?uid=${encodeURIComponent(uId)}`);
+      console.log('====================================');
+      console.log(response.data);
+      console.log('====================================');
+      return response.data?.data?.user || response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
+  /**
+   * @api /users/push-token
+   * @method POST
+   * @accept auth token from headers
+   * @param token - Expo push token
+   * @return success response
+   */
+  registerPushToken: async (token) => {
+    try {
+      const response = await api.post('/users/push-token', { pushToken: token });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to register push token:', error.message || 'Unknown error');
+
+      // Log detailed error info for debugging
+      if (error.response) {
+        console.error('Backend error:', {
+          status: error.response.status,
+          data: error.response.data,
+        });
+      }
+
+      throw error.response?.data || error;
+    }
+  },
 };

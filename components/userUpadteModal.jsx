@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Modal,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 export default function UserUpdateModal({ visible, onClose, currentDescription, onUpdate }) {
@@ -54,7 +54,9 @@ export default function UserUpdateModal({ visible, onClose, currentDescription, 
               className="border border-dark-border rounded-xl p-4 text-base text-dark-text-primary min-h-[100px] bg-dark-card"
               textAlignVertical="top"
             />
-            <Text className="text-xs text-dark-text-muted mt-1 text-right">{description.length}/200</Text>
+            <Text className="text-xs text-dark-text-muted mt-1 text-right">
+              {description.length}/200
+            </Text>
           </View>
 
           {/* Buttons */}

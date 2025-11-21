@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { useContext } from 'react';
 import '../global.css';
 import { AuthContext, AuthProvider } from '../src/context/AuthContext';
+import { ChatProvider } from '../src/context/ChatContext';
 
 function RootNavigator() {
   const { user, isLoading } = useContext(AuthContext);
@@ -28,7 +29,9 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <RootNavigator />
+      <ChatProvider>
+        <RootNavigator />
+      </ChatProvider>
     </AuthProvider>
   );
 }

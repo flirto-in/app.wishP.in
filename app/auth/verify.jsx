@@ -63,7 +63,7 @@ export default function VerifyScreen() {
     setLoading(true);
     console.log('🔄 Verifying OTP for:', phone);
 
-    const otp = parseInt(otpString);
+    const otp = otpString;
     const result = await verifyOTP(phone, otp);
 
     setLoading(false);

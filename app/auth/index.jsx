@@ -5,40 +5,47 @@ import { AuthContext } from '../../src/context/AuthContext';
 
 // Country codes with their phone number formats
 const COUNTRIES = [
-  {
-    code: '+1',
-    name: 'US/Canada',
-    flag: '🇺🇸',
-    minLength: 10,
-    maxLength: 10,
-    format: '(XXX) XXX-XXXX',
-  },
-  { code: '+44', name: 'UK', flag: '🇬🇧', minLength: 10, maxLength: 10, format: 'XXXX XXX XXX' },
+  // {code: '+1', name: 'US/Canada', flag: '🇺🇸', minLength: 10, maxLength: 10,   format: '(XXX) XXX-XXXX',  },
+  // { code: '+44', name: 'UK', flag: '🇬🇧', minLength: 10, maxLength: 10, format: 'XXXX XXX XXX' },
   { code: '+91', name: 'India', flag: '🇮🇳', minLength: 10, maxLength: 10, format: 'XXXXX XXXXX' },
-  { code: '+86', name: 'China', flag: '🇨🇳', minLength: 11, maxLength: 11, format: 'XXX XXXX XXXX' },
-  { code: '+81', name: 'Japan', flag: '🇯🇵', minLength: 10, maxLength: 10, format: 'XX XXXX XXXX' },
-  { code: '+61', name: 'Australia', flag: '🇦🇺', minLength: 9, maxLength: 9, format: 'XXX XXX XXX' },
-  {
-    code: '+49',
-    name: 'Germany',
-    flag: '🇩🇪',
-    minLength: 10,
-    maxLength: 11,
-    format: 'XXX XXXXXXXX',
-  },
-  { code: '+33', name: 'France', flag: '🇫🇷', minLength: 9, maxLength: 9, format: 'X XX XX XX XX' },
+  // { code: '+86', name: 'China', flag: '🇨🇳', minLength: 11, maxLength: 11, format: 'XXX XXXX XXXX' },
+  // { code: '+81', name: 'Japan', flag: '🇯🇵', minLength: 10, maxLength: 10, format: 'XX XXXX XXXX' },
+  // { code: '+61', name: 'Australia', flag: '🇦🇺', minLength: 9, maxLength: 9, format: 'XXX XXX XXX' },
+  // {
+  //   code: '+49',
+  //   name: 'Germany',
+  //   flag: '🇩🇪',
+  //   minLength: 10,
+  //   maxLength: 11,
+  //   format: 'XXX XXXXXXXX',
+  // },
+  // { code: '+33', name: 'France', flag: '🇫🇷', minLength: 9, maxLength: 9, format: 'X XX XX XX XX' },
 ];
 
 export default function AuthScreen() {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
-  const [selectedCountry, setSelectedCountry] = useState(COUNTRIES[2]); // Default to India
-  const { sendOTP } = useContext(AuthContext);
+  const [selectedCountry, setSelectedCountry] = useState(
+    COUNTRIES[0] || {
+      code: '+91',
+      name: 'India',
+      flag: '🇮🇳',
+      minLength: 10,
+      maxLength: 10,
+      format: 'XXXXX XXXXX',
+    },
+  ); // Default to India with fallback
+  const authContext = useContext(AuthContext);
+  const sendOTP =
+    authContext?.sendOTP || (() => ({ success: false, error: 'Auth service not available' }));
   const router = useRouter();
 
   // Format phone number according to country
   const formatPhoneNumber = (text, country) => {
+    // Add safety check
+    if (!country || !country.maxLength) return text.replace(/\D/g, '').slice(0, 10);
+
     // Remove all non-numeric characters
     const cleaned = text.replace(/\D/g, '');
 
@@ -60,10 +67,16 @@ export default function AuthScreen() {
   };
 
   const handleSendOTP = async () => {
+    // Add safety checks
+    if (!selectedCountry || !selectedCountry.minLength || !selectedCountry.code) {
+      Alert.alert('Error', 'Please select a valid country');
+      return;
+    }
+
     if (phone.length < selectedCountry.minLength) {
       Alert.alert(
         'Error',
-        `Please enter a valid ${selectedCountry.name} phone number (${selectedCountry.minLength} digits)`,
+        `Please enter a valid ${selectedCountry.name || 'phone'} number (${selectedCountry.minLength} digits)`,
       );
       return;
     }
@@ -108,9 +121,9 @@ export default function AuthScreen() {
             className="flex-row items-center border border-dark-border rounded-xl p-4 mb-3 bg-dark-card"
             disabled={loading}
           >
-            <Text className="text-2xl mr-2">{selectedCountry.flag}</Text>
+            <Text className="text-2xl mr-2">{selectedCountry?.flag || '🇮🇳'}</Text>
             <Text className="text-base font-semibold text-dark-text-primary flex-1">
-              {selectedCountry.name} ({selectedCountry.code})
+              {selectedCountry?.name || 'India'} ({selectedCountry?.code || '+91'})
             </Text>
             <Text className="text-dark-text-muted">▼</Text>
           </TouchableOpacity>
@@ -123,17 +136,19 @@ export default function AuthScreen() {
                   key={country.code}
                   onPress={() => handleCountrySelect(country)}
                   className={`flex-row items-center p-4 border-b border-dark-border ${
-                    selectedCountry.code === country.code ? 'bg-dark-accent-blue/20' : ''
+                    selectedCountry?.code === country.code ? 'bg-dark-accent-blue/20' : ''
                   }`}
                 >
                   <Text className="text-2xl mr-3">{country.flag}</Text>
                   <View className="flex-1">
-                    <Text className="text-base font-semibold text-dark-text-primary">{country.name}</Text>
+                    <Text className="text-base font-semibold text-dark-text-primary">
+                      {country.name}
+                    </Text>
                     <Text className="text-xs text-dark-text-muted">
                       {country.code} • {country.format}
                     </Text>
                   </View>
-                  {selectedCountry.code === country.code && (
+                  {selectedCountry?.code === country.code && (
                     <Text className="text-dark-accent-blue text-xl">✓</Text>
                   )}
                 </TouchableOpacity>
@@ -144,33 +159,36 @@ export default function AuthScreen() {
           {/* Phone Number Input */}
           <View className="flex-row items-center border border-dark-border rounded-xl bg-dark-card overflow-hidden">
             <View className="px-4 py-4 bg-dark-border/30 border-r border-dark-border">
-              <Text className="text-base font-semibold text-dark-text-secondary">{selectedCountry.code}</Text>
+              <Text className="text-base font-semibold text-dark-text-secondary">
+                {selectedCountry?.code || '+91'}
+              </Text>
             </View>
             <TextInput
-              placeholder={selectedCountry.format}
+              placeholder={selectedCountry?.format || 'XXXXX XXXXX'}
               placeholderTextColor="#808080"
               value={phone}
               onChangeText={handlePhoneChange}
               keyboardType="number-pad"
               editable={!loading}
-              maxLength={selectedCountry.maxLength}
+              maxLength={selectedCountry?.maxLength || 10}
               className="flex-1 px-4 py-4 text-base text-dark-text-primary"
             />
           </View>
 
           {/* Helper Text */}
           <Text className="text-xs text-dark-text-muted mt-2">
-            {phone.length}/{selectedCountry.maxLength} digits • Min: {selectedCountry.minLength}
+            {phone.length}/{selectedCountry?.maxLength || 10} digits • Min:{' '}
+            {selectedCountry?.minLength || 10}
           </Text>
         </View>
 
         {/* Send OTP Button */}
         <TouchableOpacity
           onPress={handleSendOTP}
-          disabled={loading || phone.length < selectedCountry.minLength}
+          disabled={loading || phone.length < (selectedCountry?.minLength || 10)}
           className={`rounded-xl py-4 items-center shadow-lg ${
-            loading || phone.length < selectedCountry.minLength 
-              ? 'bg-dark-border' 
+            loading || phone.length < (selectedCountry?.minLength || 10)
+              ? 'bg-dark-border'
               : 'bg-dark-accent-blue'
           }`}
         >
