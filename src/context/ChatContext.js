@@ -19,6 +19,8 @@ export function ChatProvider({ children }) {
   const [secondaryChats, setSecondaryChats] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
+  // Temp session state
+  const [activeTempSession, setActiveTempSession] = useState(null); // { sessionId, code, alias }
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [typingUsers, setTypingUsers] = useState(new Set());
   const [isConnected, setIsConnected] = useState(false);
@@ -185,6 +187,49 @@ export function ChatProvider({ children }) {
   );
 
   /**
+   * Open temp session (treated as a room)
+   */
+  const openTempSession = useCallback(async (session) => {
+    if (!session) return;
+    console.log('🚧 Opening temp session:', session);
+    setActiveTempSession(session);
+    const roomId = `temp_room_${session.code}`;
+    setActiveChat({
+      _id: roomId,
+      U_Id: session.alias,
+      isRoom: true,
+      roomId,
+      tempSessionId: session.sessionId,
+      isTemp: true,
+    });
+    if (socketService.isSocketConnected()) {
+      socketService.joinRoom(roomId);
+    }
+    // Load existing ephemeral messages (should be empty typically)
+    try {
+      const data = await chatService.getTempSessionMessages(session.sessionId);
+      setMessages(data.messages || []);
+    } catch (e) {
+      console.warn('Failed loading temp session messages', e);
+    }
+  }, []);
+
+  /**
+   * End temp session
+   */
+  const endTempSession = useCallback(async () => {
+    if (!activeTempSession) return;
+    try {
+      await chatService.endTempSession(activeTempSession.sessionId);
+    } catch (e) {
+      console.warn('Failed ending temp session', e);
+    }
+    setActiveTempSession(null);
+    setActiveChat(null);
+    setMessages([]);
+  }, [activeTempSession]);
+
+  /**
    * Send a message
    */
   const sendMessage = useCallback(
@@ -301,7 +346,10 @@ export function ChatProvider({ children }) {
   const closeChat = useCallback(() => {
     setActiveChat(null);
     setMessages([]);
-  }, []);
+    if (activeTempSession) {
+      endTempSession();
+    }
+  }, [activeTempSession, endTempSession]);
 
   /**
    * Setup socket event listeners
@@ -346,7 +394,7 @@ export function ChatProvider({ children }) {
         const senderName = message.senderId?.U_Id || message.senderId?.phoneNumber || 'Someone';
         const currentActiveChat = activeChatRef.current;
 
-        // Check if message belongs to current active chat/room
+        // Check if message belongs to current active chat/room (including temp)
         let isForActiveChat = false;
         if (currentActiveChat) {
           if (
@@ -537,6 +585,22 @@ export function ChatProvider({ children }) {
         setMessages((prev) => prev.filter((msg) => msg._id !== messageId));
       });
 
+      // Temp session ended broadcast
+      socketService.on('temp:session:ended', ({ sessionId }) => {
+        console.log('🛑 Temp session ended remotely:', sessionId);
+        if (activeTempSession && activeTempSession.sessionId === sessionId) {
+          setActiveTempSession(null);
+          setActiveChat(null);
+          setMessages([]);
+          Alert.alert('Session Ended', 'The temporary session has been destroyed.');
+          try {
+            router.replace('/(tabs)/chat');
+          } catch (e) {
+            console.warn('Navigation failure after temp end', e);
+          }
+        }
+      });
+
       // Online users
       socketService.on('online-users', (users) => {
         console.log('👥 Online users:', users.length);
@@ -629,6 +693,7 @@ export function ChatProvider({ children }) {
       socketService.off('message:read:receipt');
       socketService.off('message:deleted');
       socketService.off('message:self-destruct');
+      socketService.off('temp:session:ended');
       socketService.off('typing:start');
       socketService.off('typing:stop');
       socketService.off('message:reaction');
@@ -737,6 +802,7 @@ export function ChatProvider({ children }) {
     isConnected,
     loading,
     pushToken,
+    activeTempSession,
 
     // Actions
     loadChats,
@@ -744,8 +810,10 @@ export function ChatProvider({ children }) {
     loadRoomMessages,
     openChat,
     openRoom,
+    openTempSession,
     closeChat,
     sendMessage,
+    endTempSession,
     deleteMessageForMe,
     deleteMessageForEveryone,
     reactToMessage,

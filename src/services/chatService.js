@@ -179,4 +179,60 @@ export const chatService = {
       throw error.response?.data || error;
     }
   },
+  /**
+   * Create a temp session
+   * @api /temp/session
+   * @method POST
+   */
+  createTempSession: async () => {
+    try {
+      const response = await api.post('/temp/session');
+      return response.data?.data;
+    } catch (error) {
+      console.error('❌ Failed to create temp session:', error);
+      throw error.response?.data || error;
+    }
+  },
+  /**
+   * Join temp session by code
+   * @api /temp/session/join
+   * @method POST
+   */
+  joinTempSession: async (code) => {
+    try {
+      const response = await api.post('/temp/session/join', { code });
+      return response.data?.data;
+    } catch (error) {
+      console.error('❌ Failed to join temp session:', error);
+      throw error.response?.data || error;
+    }
+  },
+  /**
+   * End temp session
+   * @api /temp/session/:id/end
+   * @method POST
+   */
+  endTempSession: async (sessionId) => {
+    try {
+      const response = await api.post(`/temp/session/${sessionId}/end`);
+      return response.data?.data;
+    } catch (error) {
+      console.error('❌ Failed to end temp session:', error);
+      throw error.response?.data || error;
+    }
+  },
+  /**
+   * Get temp session messages
+   * @api /temp/session/:id/messages
+   * @method GET
+   */
+  getTempSessionMessages: async (sessionId) => {
+    try {
+      const response = await api.get(`/temp/session/${sessionId}/messages`);
+      return response.data?.data || { messages: [] };
+    } catch (error) {
+      console.error('❌ Failed to load temp session messages:', error);
+      throw error.response?.data || error;
+    }
+  },
 };

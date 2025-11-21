@@ -2,160 +2,297 @@ import { useRouter } from 'expo-router';
 import { useContext, useState } from 'react';
 import {
   ActivityIndicator,
-  Clipboard,
   Text,
   TextInput,
   TouchableOpacity,
   View,
+  Modal,
+  Alert,
 } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
-import api from '../src/services/api';
+import QRCode from 'react-native-qrcode-svg';
+import * as Clipboard from 'expo-clipboard';
+import { Ionicons } from '@expo/vector-icons';
+// Removed unused imports SecureStore, api
+import { chatService } from '../src/services/chatService';
+import { ChatContext } from '../src/context/ChatContext';
 import { AuthContext } from '../src/context/AuthContext';
+
+// Optional barcode scanner import
+let BarCodeScanner = null;
+try {
+  BarCodeScanner = require('expo-barcode-scanner').BarCodeScanner;
+} catch (e) {
+  console.log('BarCodeScanner not available, QR scan disabled');
+}
 
 export default function TempSessionScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState(null);
-  const [peerId, setPeerId] = useState('');
+  const [peerCode, setPeerCode] = useState('');
   const [error, setError] = useState(null);
-  const { getUser } = useContext(AuthContext);
+  // Removed unused getUser extraction
+  const { openTempSession } = useContext(ChatContext);
+  const [session, setSession] = useState(null);
+  const [warningVisible, setWarningVisible] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [hasScannerPermission, setHasScannerPermission] = useState(null);
+
+  const requestScannerPermission = async () => {
+    if (!BarCodeScanner) {
+      Alert.alert('QR Scanner Unavailable', 'Please rebuild the app with: npx expo run:android');
+      return;
+    }
+    const { status } = await BarCodeScanner.requestPermissionsAsync();
+    setHasScannerPermission(status === 'granted');
+    if (status === 'granted') setShowScanner(true);
+  };
+
+  const handleBarCodeScanned = async ({ data }) => {
+    setShowScanner(false);
+    setPeerCode(data);
+    try {
+      setLoading(true);
+      const res = await chatService.joinTempSession(data.trim());
+      setSession(res);
+      openTempSession(res);
+    } catch (_err) {
+      setError('Invalid or inactive session code');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const startTempSession = async () => {
+    setWarningVisible(false);
     try {
       setLoading(true);
       setError(null);
-
-      const res = await api.post('/auth/temp-session');
-      const { accessToken, user: createdUser } = res.data.data;
-
-      // Save token for socket connection
-      await SecureStore.setItemAsync('userToken', accessToken);
-
-      // Let AuthContext refresh and set the user state
-      try {
-        await getUser();
-      } catch (e) {
-        console.warn('Failed to refresh AuthContext user after temp session', e);
-      }
-
-      setUser(createdUser);
+      const data = await chatService.createTempSession();
+      setSession(data);
+      openTempSession(data); // open as active chat room
     } catch (err) {
       console.error('Failed to create temp session', err);
-      setError('Failed to start temporary session. Try again.');
+      setError('Failed to start temp session.');
     } finally {
       setLoading(false);
     }
   };
 
   const copyInvite = async () => {
-    if (!user) return;
-    const inviteText = `Join my temp chat: userId=${user._id}`;
-    Clipboard.setString(inviteText);
+    if (!session) return;
+    const inviteText = `Temp Chat Code: ${session.code}`;
+    await Clipboard.setStringAsync(inviteText);
   };
 
-  const openChatWithPeer = async () => {
-    if (!peerId.trim()) {
-      setError('Please enter a peer user id to chat with');
+  const joinByCode = async () => {
+    if (!peerCode.trim()) {
+      setError('Enter a session code');
       return;
     }
-
-    // Navigate to chat screen with params
-    router.push({
-      pathname: '/chat-conversation',
-      params: { userId: peerId.trim(), userName: 'Guest' },
-    });
+    try {
+      setLoading(true);
+      const data = await chatService.joinTempSession(peerCode.trim());
+      setSession(data);
+      openTempSession(data);
+    } catch (_err) {
+      console.error('Join failed', _err);
+      setError('Failed to join session');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const joinPublicRoom = () => {
-    // Navigate to chat screen with room params
-    router.push({
-      pathname: '/chat-conversation',
-      params: {
-        roomId: 'public_temp',
-        userName: 'Public Room',
-        isPublicRoom: 'true',
-      },
-    });
-  };
+  // Removed unused joinPublicRoom
 
   return (
-    <View className="flex-1 p-4 bg-dark-bg">
-      <View className="my-6">
-        <Text className="text-dark-text-primary text-xl font-semibold mb-2">
-          Temporary Chat Session
-        </Text>
-        <Text className="text-dark-text-muted">
-          Start a temporary guest session to chat without registering.
-        </Text>
-      </View>
+    <View className="flex-1 bg-[#0f1115] px-5 pt-8">
+      <Text className="text-3xl font-extrabold text-white mb-2">Temp Chat</Text>
+      <Text className="text-sm text-gray-400 mb-6">
+        Ephemeral one-time conversations. Nothing persists.
+      </Text>
 
-      {!user ? (
-        <View>
+      {!session && (
+        <View className="mb-8">
           <TouchableOpacity
-            onPress={startTempSession}
+            onPress={() => setWarningVisible(true)}
             disabled={loading}
-            className="bg-blue-500 rounded-lg py-3 items-center"
+            className="flex-row items-center justify-center bg-gradient-to-r from-pink-600 via-fuchsia-600 to-indigo-600 rounded-2xl py-4 shadow-lg"
           >
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text className="text-white font-semibold">Start Temporary Session</Text>
+              <Text className="text-white font-semibold text-base">Start New Temp Session</Text>
             )}
           </TouchableOpacity>
-
-          {error && <Text className="text-red-400 mt-3">{error}</Text>}
-        </View>
-      ) : (
-        <View>
-          <View className="bg-dark-surface rounded-lg p-4 mb-4">
-            <Text className="text-dark-text-primary">Your temporary user ID:</Text>
-            <Text className="text-white font-mono mt-2">{user._id}</Text>
-            <Text className="text-dark-text-muted mt-2">Display name: {user.U_Id}</Text>
+          <View className="mt-6 bg-gray-800/40 border border-gray-700 rounded-2xl p-4">
+            <Text className="text-gray-300 text-sm mb-2 font-medium">Join with Code</Text>
+            <View className="flex-row items-center bg-gray-900 rounded-xl px-3 py-3 mb-3">
+              <Ionicons name="key" size={18} color="#64748B" />
+              <TextInput
+                value={peerCode}
+                onChangeText={setPeerCode}
+                placeholder="Enter session code"
+                placeholderTextColor="#64748B"
+                className="flex-1 ml-2 text-white"
+                autoCapitalize="characters"
+              />
+              {peerCode.length > 0 && (
+                <TouchableOpacity onPress={() => setPeerCode('')}>
+                  <Ionicons name="close-circle" size={18} color="#64748B" />
+                </TouchableOpacity>
+              )}
+            </View>
+            <TouchableOpacity
+              onPress={joinByCode}
+              className="bg-indigo-600 rounded-xl py-3 items-center"
+              disabled={loading}
+            >
+              <Text className="text-white font-semibold">Join Session</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() =>
+                BarCodeScanner
+                  ? hasScannerPermission
+                    ? setShowScanner(true)
+                    : requestScannerPermission()
+                  : Alert.alert(
+                      'QR Scanner Unavailable',
+                      'Enter session code manually or rebuild app',
+                    )
+              }
+              className="bg-pink-600 rounded-xl py-3 items-center mt-3"
+              disabled={loading}
+            >
+              <Text className="text-white font-semibold">
+                {!BarCodeScanner
+                  ? 'QR Scan (Rebuild Required)'
+                  : hasScannerPermission
+                    ? 'Scan QR Code'
+                    : 'Grant Camera & Scan'}
+              </Text>
+            </TouchableOpacity>
+            {error && <Text className="text-red-400 mt-3 text-xs">{error}</Text>}
           </View>
-
-          <TouchableOpacity
-            onPress={copyInvite}
-            className="bg-gray-700 rounded-lg py-2 items-center mb-4"
-          >
-            <Text className="text-white">Copy Invite Link</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={joinPublicRoom}
-            className="bg-green-600 rounded-lg py-3 items-center mb-4"
-          >
-            <Text className="text-white font-semibold">Join Public Room</Text>
-          </TouchableOpacity>
-
-          <Text className="text-dark-text-muted mb-2 mt-2">
-            Or enter peer user ID to start private chat:
-          </Text>
-          <TextInput
-            value={peerId}
-            onChangeText={setPeerId}
-            placeholder="Peer user id"
-            placeholderTextColor="#999"
-            className="bg-dark-card rounded-lg p-3 mb-3 text-dark-text-primary"
-          />
-
-          <TouchableOpacity
-            onPress={openChatWithPeer}
-            className="bg-blue-500 rounded-lg py-3 items-center"
-          >
-            <Text className="text-white font-semibold">Open Chat</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => {
-              // Allow user to create another temp session
-              setUser(null);
-              setPeerId('');
-            }}
-            className="mt-3 items-center"
-          >
-            <Text className="text-dark-accent-blue">Start a new temp session</Text>
-          </TouchableOpacity>
         </View>
+      )}
+
+      {session && (
+        <View className="flex-1">
+          <View className="bg-gray-900 border border-indigo-700/40 rounded-2xl p-5 mb-5">
+            <Text className="text-xs tracking-wider text-indigo-400 mb-2 font-semibold">
+              ACTIVE SESSION
+            </Text>
+            <Text className="text-white text-xl font-bold mb-1">Code: {session.code}</Text>
+            <Text className="text-gray-400 mb-4 text-sm">Alias: {session.alias}</Text>
+            <View className="items-center justify-center mb-4">
+              <View className="bg-white p-3 rounded-xl">
+                <QRCode value={session.code} size={140} backgroundColor="#ffffff" color="#111827" />
+              </View>
+              <Text className="text-[10px] text-gray-500 mt-2">Scan to join session</Text>
+            </View>
+            <View className="flex-row">
+              <TouchableOpacity
+                onPress={copyInvite}
+                className="flex-1 bg-gray-700 rounded-xl py-3 items-center mr-3"
+              >
+                <Text className="text-white text-sm">Copy Code</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() =>
+                  router.push({
+                    pathname: '/chat-conversation',
+                    params: {
+                      roomId: `temp_room_${session.code}`,
+                      userName: session.alias,
+                      isPublicRoom: 'false',
+                      isTempSession: 'true',
+                      tempSessionId: session.sessionId,
+                    },
+                  })
+                }
+                className="flex-1 bg-indigo-600 rounded-xl py-3 items-center"
+              >
+                <Text className="text-white font-semibold">Open Chat</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* Warning Modal */}
+      <Modal
+        visible={warningVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setWarningVisible(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setWarningVisible(false)}
+          className="flex-1 bg-black/60 justify-center px-6"
+        >
+          <View className="bg-gray-900 rounded-2xl p-6 border border-gray-700">
+            <Text className="text-red-400 font-bold text-lg mb-2">Ephemeral Session</Text>
+            <Text className="text-gray-300 text-sm mb-4">
+              All messages will be permanently destroyed when the session ends or you leave the
+              chat. Files can only be previewed and are never downloadable.
+            </Text>
+            <View className="flex-row mt-2">
+              <TouchableOpacity
+                onPress={() => setWarningVisible(false)}
+                className="flex-1 bg-gray-700 rounded-xl py-3 items-center mr-3"
+              >
+                <Text className="text-gray-200">Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={startTempSession}
+                className="flex-1 bg-pink-600 rounded-xl py-3 items-center"
+              >
+                <Text className="text-white font-semibold">Start</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* QR Scanner Modal */}
+      {BarCodeScanner && (
+        <Modal
+          visible={showScanner}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowScanner(false)}
+        >
+          <View className="flex-1 bg-black/80 justify-center px-6">
+            <View className="rounded-2xl overflow-hidden border border-pink-700/40">
+              {hasScannerPermission === false ? (
+                <View className="bg-gray-900 p-6">
+                  <Text className="text-red-400 mb-3 font-semibold">Camera permission denied</Text>
+                  <Text className="text-gray-300 text-sm mb-4">
+                    Enable camera access in settings to scan QR codes.
+                  </Text>
+                  <TouchableOpacity
+                    onPress={requestScannerPermission}
+                    className="bg-pink-600 rounded-xl py-3 items-center"
+                  >
+                    <Text className="text-white font-semibold">Retry Permission</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <BarCodeScanner
+                  onBarCodeScanned={handleBarCodeScanned}
+                  style={{ width: '100%', height: 320 }}
+                />
+              )}
+            </View>
+            <TouchableOpacity
+              onPress={() => setShowScanner(false)}
+              className="mt-4 bg-gray-800 rounded-xl py-3 items-center border border-gray-700"
+            >
+              <Text className="text-gray-200 font-medium">Close Scanner</Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
       )}
     </View>
   );

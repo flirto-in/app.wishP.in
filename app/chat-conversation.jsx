@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ChatContext } from '../src/context/ChatContext';
+import { AuthContext } from '../src/context/AuthContext';
 
 export default function ChatConversationScreen() {
   const router = useRouter();
@@ -192,9 +193,12 @@ export default function ChatConversationScreen() {
     ]);
   };
 
+  const { user } = useContext(AuthContext);
+
   const renderMessage = ({ item: message }) => {
     const senderId = message.senderId?._id || message.senderId;
-    const isMyMessage = senderId === activeChat?._id ? false : true;
+    const currentUserId = user?._id;
+    const isMyMessage = senderId === currentUserId;
     const isDeleted = message.deleted || message.text === 'This message was deleted';
 
     return (
@@ -216,12 +220,22 @@ export default function ChatConversationScreen() {
       >
         <View
           className={`max-w-[75%] rounded-2xl p-3 ${
-            isMyMessage ? 'bg-blue-500' : 'bg-dark-surface border border-dark-border'
+            activeChat?.isTemp
+              ? isMyMessage
+                ? 'bg-pink-600'
+                : 'bg-gray-800 border border-pink-700/40'
+              : isMyMessage
+                ? 'bg-blue-500'
+                : 'bg-dark-surface border border-dark-border'
           }`}
         >
           <Text
             className={`text-base ${
-              isMyMessage ? 'text-white' : 'text-dark-text-primary'
+              isMyMessage
+                ? 'text-white'
+                : activeChat?.isTemp
+                  ? 'text-gray-200'
+                  : 'text-dark-text-primary'
             } ${isDeleted ? 'italic opacity-60' : ''}`}
           >
             {isDeleted ? 'This message was deleted' : message.text || message.encryptedText}
@@ -359,6 +373,15 @@ export default function ChatConversationScreen() {
         )}
       </View>
 
+      {/* Temp session banner */}
+      {activeChat?.isTemp && (
+        <View className="mx-3 mt-2 mb-1 bg-pink-600/10 border border-pink-700/40 rounded-xl p-2">
+          <Text className="text-pink-400 text-xs font-medium">
+            Ephemeral session: media & attachments disabled.
+          </Text>
+        </View>
+      )}
+
       {/* Modern Input Bar (dynamic bottom offset) */}
       <View
         style={{
@@ -368,13 +391,22 @@ export default function ChatConversationScreen() {
       >
         <View className="mx-3 bg-dark-surface/95 rounded-3xl px-4 pt-3 pb-3 shadow-lg border border-dark-border">
           <View className="flex-row items-end">
-            {/* Leading actions */}
-            <TouchableOpacity className="mr-3" onPress={() => {}} activeOpacity={0.7}>
-              <Ionicons name="add-circle-outline" size={26} color="#3B82F6" />
-            </TouchableOpacity>
-            <TouchableOpacity className="mr-3" onPress={() => {}} activeOpacity={0.7}>
-              <Ionicons name="happy-outline" size={26} color="#3B82F6" />
-            </TouchableOpacity>
+            {/* Leading actions (hidden in temp session) */}
+            {!activeChat?.isTemp && (
+              <>
+                <TouchableOpacity className="mr-3" onPress={() => {}} activeOpacity={0.7}>
+                  <Ionicons name="add-circle-outline" size={26} color="#3B82F6" />
+                </TouchableOpacity>
+                <TouchableOpacity className="mr-3" onPress={() => {}} activeOpacity={0.7}>
+                  <Ionicons name="happy-outline" size={26} color="#3B82F6" />
+                </TouchableOpacity>
+              </>
+            )}
+            {activeChat?.isTemp && (
+              <View className="mr-3 px-2 py-1 rounded-lg bg-pink-600/20 border border-pink-700/40">
+                <Text className="text-[10px] text-pink-300">No media</Text>
+              </View>
+            )}
 
             {/* Input */}
             <View className="flex-1 mr-3">

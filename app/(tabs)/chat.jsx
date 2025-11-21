@@ -159,7 +159,8 @@ export default function ChatScreen() {
     const unread = item.unreadCount > 0;
     const lastTime = formatRelativeTime(item.lastMessageTime);
     const lastMessageRaw = item.lastMessage || 'No messages yet';
-    const lastMessage = lastMessageRaw.length > 80 ? `${lastMessageRaw.slice(0, 77)}…` : lastMessageRaw;
+    const lastMessage =
+      lastMessageRaw.length > 80 ? `${lastMessageRaw.slice(0, 77)}…` : lastMessageRaw;
     const [startColor, endColor] = getAvatarColors(userId);
 
     return (
@@ -218,7 +219,12 @@ export default function ChatScreen() {
               {userName}
             </Text>
             {isMuted && (
-              <Ionicons name="notifications-off" size={14} color="#9CA3AF" style={{ marginLeft: 6 }} />
+              <Ionicons
+                name="notifications-off"
+                size={14}
+                color="#9CA3AF"
+                style={{ marginLeft: 6 }}
+              />
             )}
           </View>
           <View className="flex-row items-center">
@@ -238,11 +244,11 @@ export default function ChatScreen() {
 
         {/* Meta column */}
         <View className="items-end justify-between h-14 py-1">
-          <Text className={`text-[11px] ${unread ? 'text-blue-300' : 'text-transparent'}`}>{lastTime}</Text>
+          <Text className={`text-[11px] ${unread ? 'text-blue-300' : 'text-transparent'}`}>
+            {lastTime}
+          </Text>
           <View className="mt-auto flex-row items-center">
-            {unread && (
-              <View className="w-3 h-3 rounded-full bg-blue-500 mr-2" />
-            )}
+            {unread && <View className="w-3 h-3 rounded-full bg-blue-500 mr-2" />}
             <Ionicons name="chevron-forward" size={18} color="#6B7280" />
           </View>
         </View>
@@ -390,7 +396,15 @@ export default function ChatScreen() {
         }
       />
 
-      {/* Floating Action Button */}
+      {/* Floating Action Buttons */}
+      <TouchableOpacity
+        onPress={() => router.push('/temp-session')}
+        className="absolute bottom-24 right-6 w-14 h-14 rounded-full bg-pink-600 justify-center items-center shadow-2xl"
+        activeOpacity={0.85}
+      >
+        <Ionicons name="timer" size={24} color="#fff" />
+      </TouchableOpacity>
+
       <TouchableOpacity
         onPress={() => router.push('/explore')}
         className="absolute bottom-6 right-6 w-14 h-14 rounded-full bg-blue-600 justify-center items-center shadow-2xl"
