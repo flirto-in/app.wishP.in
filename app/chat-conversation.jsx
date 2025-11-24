@@ -11,7 +11,11 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Image,
 } from 'react-native';
+// File & picker modules (ensure installed in package.json)
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ChatContext } from '../src/context/ChatContext';
@@ -34,6 +38,7 @@ export default function ChatConversationScreen() {
     deleteMessageForMe,
     deleteMessageForEveryone,
     reactToMessage,
+    uploadFileMessage,
     isUserOnline,
     startTyping,
     stopTyping,
@@ -195,11 +200,42 @@ export default function ChatConversationScreen() {
 
   const { user } = useContext(AuthContext);
 
+  const handlePickFile = async () => {
+    try {
+      if (activeChat?.isTemp) {
+        Alert.alert('Disabled', 'File uploads are hidden in temp sessions.');
+        return;
+      }
+      const result = await DocumentPicker.getDocumentAsync({ multiple: false });
+      if (result.canceled) return;
+      const file = result.assets?.[0];
+      if (!file) return;
+      await uploadFileMessage({ uri: file.uri, name: file.name, mimeType: file.mimeType });
+    } catch (e) {
+      Alert.alert('Error', e.message || 'File selection failed');
+    }
+  };
+
+  const handleDownload = async (message) => {
+    try {
+      if (!message.mediaUrl) return;
+      const fileName = message.mediaUrl.split('/').pop()?.split('?')[0] || 'download';
+      // documentDirectory may not be statically analyzable; fall back to cacheDirectory
+      const baseDir = FileSystem.documentDirectory || FileSystem.cacheDirectory;
+      const dest = baseDir + fileName;
+      const { uri } = await FileSystem.downloadAsync(message.mediaUrl, dest);
+      Alert.alert('Downloaded', `Saved to: ${uri}`);
+    } catch (e) {
+      Alert.alert('Download Failed', e.message || 'Could not download');
+    }
+  };
+
   const renderMessage = ({ item: message }) => {
     const senderId = message.senderId?._id || message.senderId;
     const currentUserId = user?._id;
     const isMyMessage = senderId === currentUserId;
     const isDeleted = message.deleted || message.text === 'This message was deleted';
+    if (message.hidden) return null; // Do not render hidden messages
 
     return (
       <TouchableOpacity
@@ -229,17 +265,53 @@ export default function ChatConversationScreen() {
                 : 'bg-dark-surface border border-dark-border'
           }`}
         >
-          <Text
-            className={`text-base ${
-              isMyMessage
-                ? 'text-white'
-                : activeChat?.isTemp
-                  ? 'text-gray-200'
-                  : 'text-dark-text-primary'
-            } ${isDeleted ? 'italic opacity-60' : ''}`}
-          >
-            {isDeleted ? 'This message was deleted' : message.text || message.encryptedText}
-          </Text>
+          {message.messageType === 'text' && (
+            <Text
+              className={`text-base ${
+                isMyMessage
+                  ? 'text-white'
+                  : activeChat?.isTemp
+                    ? 'text-gray-200'
+                    : 'text-dark-text-primary'
+              } ${isDeleted ? 'italic opacity-60' : ''}`}
+            >
+              {isDeleted ? 'This message was deleted' : message.text || message.encryptedText}
+            </Text>
+          )}
+          {message.messageType === 'image' && message.mediaUrl && (
+            <Image
+              source={{ uri: message.mediaUrl }}
+              style={{ width: 180, height: 180, borderRadius: 12, marginBottom: 4 }}
+              resizeMode="cover"
+            />
+          )}
+          {message.messageType === 'file' && message.mediaUrl && (
+            <View className="mb-2">
+              <View className="flex-row items-center mb-1">
+                <Ionicons
+                  name="document-text-outline"
+                  size={18}
+                  color={isMyMessage ? '#fff' : '#3B82F6'}
+                />
+                <Text
+                  numberOfLines={1}
+                  className={`ml-2 flex-1 text-xs ${isMyMessage ? 'text-blue-100' : 'text-dark-text-primary'}`}
+                >
+                  {message.mediaUrl.split('/').pop()?.split('?')[0] || 'file'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => handleDownload(message)}
+                className={`px-3 py-1 rounded-lg ${isMyMessage ? 'bg-blue-700' : 'bg-dark-border'}`}
+              >
+                <Text
+                  className={`text-xs ${isMyMessage ? 'text-white' : 'text-dark-text-primary'}`}
+                >
+                  Download
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           <View className="flex-row items-center justify-between mt-1">
             <Text className={`text-xs ${isMyMessage ? 'text-blue-100' : 'text-dark-text-muted'}`}>
@@ -394,7 +466,7 @@ export default function ChatConversationScreen() {
             {/* Leading actions (hidden in temp session) */}
             {!activeChat?.isTemp && (
               <>
-                <TouchableOpacity className="mr-3" onPress={() => {}} activeOpacity={0.7}>
+                <TouchableOpacity className="mr-3" onPress={handlePickFile} activeOpacity={0.7}>
                   <Ionicons name="add-circle-outline" size={26} color="#3B82F6" />
                 </TouchableOpacity>
                 <TouchableOpacity className="mr-3" onPress={() => {}} activeOpacity={0.7}>

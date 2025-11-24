@@ -15,13 +15,12 @@ import { Ionicons } from '@expo/vector-icons';
 // Removed unused imports SecureStore, api
 import { chatService } from '../src/services/chatService';
 import { ChatContext } from '../src/context/ChatContext';
-import { AuthContext } from '../src/context/AuthContext';
 
 // Optional barcode scanner import
 let BarCodeScanner = null;
 try {
   BarCodeScanner = require('expo-barcode-scanner').BarCodeScanner;
-} catch (e) {
+} catch (_e) {
   console.log('BarCodeScanner not available, QR scan disabled');
 }
 

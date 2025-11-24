@@ -825,6 +825,32 @@ export function ChatProvider({ children }) {
     deleteChat,
     clearChat,
     muteChat,
+    // New file upload action
+    uploadFileMessage: async (fileInfo) => {
+      if (!activeChat) {
+        console.warn('No active chat for file upload');
+        return null;
+      }
+      try {
+        const isRoom = !!activeChat.isRoom;
+        const message = await chatService.uploadFileMessage({
+          fileUri: fileInfo.uri,
+          fileName: fileInfo.name,
+          mimeType: fileInfo.mimeType,
+          receiverId: !isRoom ? activeChat._id : undefined,
+          roomId: isRoom ? activeChat.roomId : undefined,
+          hideInTemp: !!activeChat.isTemp, // hide in temp room
+        });
+        if (message && !message.hidden) {
+          setMessages((prev) => [...prev, message]);
+        }
+        return message;
+      } catch (e) {
+        console.error('File upload failed', e);
+        Alert.alert('Upload Failed', e.message || 'Could not upload file');
+        return null;
+      }
+    },
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

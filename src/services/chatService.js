@@ -235,4 +235,38 @@ export const chatService = {
       throw error.response?.data || error;
     }
   },
+  /**
+   * Upload a file (normal chat or room). Hidden if temp unless explicitly allowed.
+   * @api /messages/upload
+   * @method POST multipart/form-data
+   * @param {Object} params { fileUri, fileName, mimeType, receiverId?, roomId?, hideInTemp? }
+   */
+  uploadFileMessage: async ({
+    fileUri,
+    fileName,
+    mimeType,
+    receiverId,
+    roomId,
+    hideInTemp = true,
+  }) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', {
+        uri: fileUri,
+        name: fileName || 'upload',
+        type: mimeType || 'application/octet-stream',
+      });
+      if (receiverId) formData.append('receiverId', receiverId);
+      if (roomId) formData.append('roomId', roomId);
+      if (hideInTemp) formData.append('hideInTemp', 'true');
+
+      const response = await api.post('/messages/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data?.data?.message;
+    } catch (error) {
+      console.error('❌ Failed to upload file message:', error);
+      throw error.response?.data || error;
+    }
+  },
 };
