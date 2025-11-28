@@ -1,16 +1,16 @@
 import * as SecureStore from 'expo-secure-store';
 import { io } from 'socket.io-client';
 
-// Network configuration - change based on your setup
+// Production server configuration
 const getSocketURL = () => {
-  // For development, use localhost for web/emulator, network IP for physical device
-  const NETWORK_IP = '10.59.76.54';
-  // Removed unused LOCALHOST_IP to satisfy lint rule
-
-  // Using NETWORK_IP for physical device (Expo Go)
-  const SERVER_IP = NETWORK_IP; // Use 'localhost' for web/emulator if needed
-
-  return `http://${SERVER_IP}:8000`;
+  // Production server hosted on Vercel
+  const PRODUCTION_URL = 'https://apiwhisp.vercel.app';
+  
+  // For local development, uncomment below:
+  // const LOCAL_URL = 'http://10.59.76.54:8000';
+  // return LOCAL_URL;
+  
+  return PRODUCTION_URL;
 };
 
 const SOCKET_URL = getSocketURL();
@@ -49,7 +49,8 @@ class SocketService {
       return new Promise((resolve, reject) => {
         this.socket = io(SOCKET_URL, {
           auth: { token },
-          transports: ['websocket', 'polling'],
+          transports: ['polling'], // ⚠️ Using polling only (Vercel doesn't support WebSocket)
+          // For production with WebSocket support, use: ['websocket', 'polling']
           reconnection: true,
           reconnectionDelay: 1000,
           reconnectionAttempts: 5,
@@ -110,6 +111,18 @@ class SocketService {
     this.socket.on('error', (error) => {
       console.error('❌ Socket error:', error);
       this.emit('socket_error', error);
+    });
+
+    // E2EE session initialization handler
+    this.socket.on('e2ee:init-session', (data) => {
+      console.log('🔐 E2EE session initialization received:', data);
+      this.emit('e2ee:init-session', data);
+    });
+
+    // Force logout handler (single device login)
+    this.socket.on('force:logout', (data) => {
+      console.log('🚪 Force logout received:', data);
+      this.emit('force:logout', data);
     });
   }
 

@@ -5,6 +5,11 @@ import { chatService } from '../services/chatService';
 import notificationService from '../services/notificationService';
 import { socketService } from '../services/socket';
 import { userService } from '../services/user.service';
+import {
+  initializeE2EE,
+  sendEncryptedMessage,
+  receiveEncryptedMessage,
+} from '../services/e2eeExample';
 import { AuthContext } from './AuthContext';
 
 export const ChatContext = createContext();
@@ -28,13 +33,44 @@ export function ChatProvider({ children }) {
   const [pushToken, setPushToken] = useState(null);
   const [mutedChats, setMutedChats] = useState(new Set()); // Track muted chat IDs
 
-  // Ref to store current activeChat to avoid stale closures
-  const activeChatRef = useRef(null);
+  // E2EE is ALWAYS enabled - no toggle
+  const e2eeEnabled = true;
+  const [e2eeInitialized, setE2eeInitialized] = useState(false);
 
-  // Update ref whenever activeChat changes
+  // Ref to store current activeChat to avoid stale closures
+  const activeChatRef = useRef(null); // Update ref whenever activeChat changes
   useEffect(() => {
     activeChatRef.current = activeChat;
   }, [activeChat]);
+
+  /**
+   * Initialize E2EE - Always enabled, auto-init on login
+   */
+  useEffect(() => {
+    const initE2EE = async () => {
+      try {
+        // E2EE is ALWAYS enabled - initialize for all users
+        if (user && !e2eeInitialized) {
+          console.log('🔐 Auto-initializing E2EE for user:', user._id);
+          await initializeE2EE();
+          setE2eeInitialized(true);
+          console.log('✅ E2EE initialized successfully - encryption ALWAYS ON');
+        }
+      } catch (error) {
+        console.error('❌ E2EE initialization failed:', error);
+        // Retry initialization after 5 seconds
+        setTimeout(() => {
+          if (user && !e2eeInitialized) {
+            initE2EE();
+          }
+        }, 5000);
+      }
+    };
+
+    if (user) {
+      initE2EE();
+    }
+  }, [user, e2eeInitialized]);
 
   /**
    * Load all chats
@@ -233,7 +269,7 @@ export function ChatProvider({ children }) {
    * Send a message
    */
   const sendMessage = useCallback(
-    (text, selfDestruct = null) => {
+    async (text, selfDestruct = null) => {
       if (!activeChat) {
         console.warn('⚠️ Cannot send message: No active chat');
         return;
@@ -254,17 +290,34 @@ export function ChatProvider({ children }) {
         return;
       }
 
-      if (activeChat.isRoom) {
-        console.log('📤 Sending room message to:', activeChat.roomId, 'Text:', text.trim());
-        socketService.sendMessage(null, text.trim(), 'text', activeChat.roomId, selfDestruct);
-      } else {
-        console.log('📤 Sending message to:', activeChat._id, 'Text:', text.trim());
-        socketService.sendMessage(activeChat._id, text.trim(), 'text', null, selfDestruct);
+      try {
+        // E2EE is ALWAYS enabled for direct messages
+        if (!activeChat.isRoom && e2eeInitialized) {
+          console.log('🔐 Encrypting message with E2EE (always-on)...');
+          await sendEncryptedMessage(activeChat._id, text.trim(), socketService);
+          console.log('✅ Encrypted message sent');
+        } else if (!activeChat.isRoom && !e2eeInitialized) {
+          // E2EE not ready yet - queue or show error
+          console.warn('⚠️ E2EE not initialized yet, retrying...');
+          Alert.alert('Please wait', 'Encryption is still initializing. Try again in a moment.');
+          return;
+        } else {
+          // Send plaintext message
+          if (activeChat.isRoom) {
+            console.log('📤 Sending room message to:', activeChat.roomId, 'Text:', text.trim());
+            socketService.sendMessage(null, text.trim(), 'text', activeChat.roomId, selfDestruct);
+          } else {
+            console.log('📤 Sending message to:', activeChat._id, 'Text:', text.trim());
+            socketService.sendMessage(activeChat._id, text.trim(), 'text', null, selfDestruct);
+          }
+          console.log('✅ Message sent via socket');
+        }
+      } catch (error) {
+        console.error('❌ Failed to send message:', error);
+        Alert.alert('Error', 'Failed to send message');
       }
-
-      console.log('✅ Message sent via socket');
     },
-    [activeChat, isConnected],
+    [activeChat, isConnected, e2eeInitialized],
   );
 
   /**
@@ -387,25 +440,43 @@ export function ChatProvider({ children }) {
       });
 
       // Message received
-      socketService.on('message:receive', (message) => {
+      socketService.on('message:receive', async (message) => {
         console.log('📨 Message received:', message);
 
         const senderId = message.senderId?._id || message.senderId;
         const senderName = message.senderId?.U_Id || message.senderId?.phoneNumber || 'Someone';
         const currentActiveChat = activeChatRef.current;
 
+        // Decrypt message if encrypted (E2EE is always-on)
+        let decryptedMessage = message;
+        if (message.encryptedText && message.ratchetHeader) {
+          try {
+            console.log('🔓 Decrypting E2EE message (always-on)...');
+            const plaintext = await receiveEncryptedMessage(message);
+            decryptedMessage = { ...message, text: plaintext, encryptedText: undefined };
+            console.log('✅ Message decrypted successfully');
+          } catch (error) {
+            console.error('❌ Failed to decrypt message:', error);
+            decryptedMessage = {
+              ...message,
+              text: '[Unable to decrypt message]',
+              decryptionError: true,
+            };
+          }
+        }
+
         // Check if message belongs to current active chat/room (including temp)
         let isForActiveChat = false;
         if (currentActiveChat) {
           if (
-            message.roomId &&
+            decryptedMessage.roomId &&
             currentActiveChat.isRoom &&
-            message.roomId === currentActiveChat.roomId
+            decryptedMessage.roomId === currentActiveChat.roomId
           ) {
             // Room message for current room
             isForActiveChat = true;
           } else if (
-            !message.roomId &&
+            !decryptedMessage.roomId &&
             !currentActiveChat.isRoom &&
             senderId === currentActiveChat._id
           ) {
@@ -418,11 +489,11 @@ export function ChatProvider({ children }) {
         if (isForActiveChat) {
           setMessages((prev) => {
             // Check if message already exists
-            const messageExists = prev.some((msg) => msg._id === message._id);
+            const messageExists = prev.some((msg) => msg._id === decryptedMessage._id);
             if (messageExists) {
               return prev;
             }
-            return [...prev, message];
+            return [...prev, decryptedMessage];
           });
 
           // Mark as read (only for direct messages, not room messages)
@@ -803,6 +874,8 @@ export function ChatProvider({ children }) {
     loading,
     pushToken,
     activeTempSession,
+    e2eeEnabled,
+    e2eeInitialized,
 
     // Actions
     loadChats,

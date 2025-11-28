@@ -26,9 +26,20 @@ export const authService = {
       await SecureStore.deleteItemAsync('userToken');
       console.log('🗑️ Old token cleared');
 
+      // Generate or retrieve device ID
+      let deviceId = await SecureStore.getItemAsync('deviceId');
+      if (!deviceId) {
+        deviceId = `device_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        await SecureStore.setItemAsync('deviceId', deviceId);
+        console.log('🆕 New device ID generated:', deviceId);
+      } else {
+        console.log('📱 Existing device ID:', deviceId);
+      }
+
       const response = await api.post('/auth/authentication', {
         phoneNumber,
         otp, // Send as string, not parseInt
+        deviceId, // Send device ID for single device login tracking
       });
 
       console.log('✅ API Response:', JSON.stringify(response.data, null, 2));

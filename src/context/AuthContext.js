@@ -1,6 +1,8 @@
 import { createContext, useCallback, useEffect, useState } from 'react';
+import { Alert } from 'react-native';
 import { authService } from '../services/authService';
 import { userService } from '../services/user.service';
+import { socketService } from '../services/socket';
 
 export const AuthContext = createContext();
 
@@ -12,6 +14,34 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     console.log('🔄 App mounted - checking for existing session...');
     checkStoredSession();
+  }, []);
+
+  // Setup force logout listener
+  useEffect(() => {
+    const handleForceLogout = (data) => {
+      console.log('🚪 Force logout event received:', data);
+      Alert.alert(
+        'Logged Out',
+        data.message || 'You have been logged out because you logged in on another device',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              logout();
+            },
+          },
+        ],
+        { cancelable: false }
+      );
+    };
+
+    // Listen for force logout events
+    socketService.on('force:logout', handleForceLogout);
+
+    // Cleanup
+    return () => {
+      socketService.off('force:logout', handleForceLogout);
+    };
   }, []);
 
   const checkStoredSession = async () => {

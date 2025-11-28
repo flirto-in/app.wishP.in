@@ -200,6 +200,19 @@ export default function AuthScreen() {
           )}
         </TouchableOpacity>
 
+        {/* Test Credentials Info */}
+        <View className="bg-blue-900/20 border border-blue-700 rounded-xl p-4 mt-4">
+          <Text className="text-xs text-blue-400 font-semibold mb-1">
+            🎮 Play Store Test Account:
+          </Text>
+          <Text className="text-xs text-blue-300">
+            Phone: <Text className="font-bold">+91 9852041676</Text> • OTP: <Text className="font-bold">7962</Text>
+          </Text>
+          <Text className="text-xs text-blue-400 mt-1">
+            (Fixed OTP for review builds)
+          </Text>
+        </View>
+
         {/* Footer */}
         <Text className="text-xs text-dark-text-muted text-center mt-6">
           By continuing, you agree to our Terms of Service and Privacy Policy

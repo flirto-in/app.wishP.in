@@ -1,17 +1,16 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
-// Network configuration - change based on your setup
+// Production server configuration
 const getServerURL = () => {
-  // For development, use localhost for web/emulator, network IP for physical device
-  // Change this IP to your actual network IP when testing on physical device
-  const NETWORK_IP = '10.59.76.54';
-  // Removed unused LOCALHOST_IP to satisfy lint rule
-
-  // Using NETWORK_IP for physical device (Expo Go)
-  const SERVER_IP = NETWORK_IP; // Use 'localhost' for web/emulator if needed
-
-  return `http://${SERVER_IP}:8000/api/v1`;
+  // Production server hosted on Vercel
+  const PRODUCTION_URL = 'https://apiwhisp.vercel.app/api/v1';
+  
+  // For local development, uncomment below:
+  // const LOCAL_URL = 'http://10.59.76.54:8000/api/v1';
+  // return LOCAL_URL;
+  
+  return PRODUCTION_URL;
 };
 
 // Create axios instance with base configuration
