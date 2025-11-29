@@ -10,14 +10,12 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check for existing session on app start
+  // Check for existing session on app start and setup force logout listener
   useEffect(() => {
     console.log('🔄 App mounted - checking for existing session...');
     checkStoredSession();
-  }, []);
 
-  // Setup force logout listener
-  useEffect(() => {
+    // ✅ FIX: Listen for force logout from another device
     const handleForceLogout = (data) => {
       console.log('🚪 Force logout event received:', data);
       Alert.alert(
@@ -31,7 +29,7 @@ export const AuthProvider = ({ children }) => {
             },
           },
         ],
-        { cancelable: false }
+        { cancelable: false },
       );
     };
 

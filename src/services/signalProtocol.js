@@ -222,6 +222,54 @@ class SignalProtocol {
     };
   }
 
+  /**
+   * High-level session initialization (fetches bundle and initiates session)
+   * This is the wrapper that ChatContext should call
+   * 
+   * @param {string} peerUserId - MongoDB user ID of the peer
+   * @returns {string} Session ID (same as peerUserId for easy lookup)
+   */
+  async initSession(peerUserId) {
+    await this.init();
+
+    console.log(`🔑 No session found, initiating X3DH...`);
+
+    // Import API dynamically to avoid circular dependency
+    const api = (await import('./api')).default;
+
+    try {
+      // Fetch peer's prekey bundle from server
+      const response = await api.get(`/e2ee/prekey-bundle/${peerUserId}`);
+      const bundle = response.data?.data?.bundle;
+
+      if (!bundle) {
+        throw new Error('No prekey bundle available for user');
+      }
+
+      // Initiate X3DH session
+      const { sessionId: tempSessionId, initialHeader } = await this.initiateSession(bundle);
+
+      // ✅ FIX: Store session with MongoDB user ID (not identity key)
+      // This allows lookup by `activeChat._id`
+      const actualSessionId = peerUserId;
+      const tempState = await this.getSessionState(tempSessionId);
+
+      if (tempState) {
+        // Re-save with the correct session ID (MongoDB user ID)
+        await this.saveSessionState(actualSessionId, tempState);
+        // Delete the temp session
+        await this.deleteSession(tempSessionId);
+      }
+
+      console.log(`✅ X3DH session initiated: ${actualSessionId}`);
+
+      return actualSessionId;
+    } catch (error) {
+      console.error(`❌ Failed to init session with ${peerUserId}:`, error.message);
+      throw error;
+    }
+  }
+
   // ============= X3DH KEY AGREEMENT (RESPONDER) =============
 
   /**

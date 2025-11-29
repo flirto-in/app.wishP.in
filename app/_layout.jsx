@@ -4,6 +4,10 @@ import '../global.css';
 import { AuthContext, AuthProvider } from '../src/context/AuthContext';
 import { ChatProvider } from '../src/context/ChatContext';
 
+// Polyfills for crypto operations
+import { Buffer } from 'buffer';
+global.Buffer = Buffer;
+
 function RootNavigator() {
   const { user, isLoading } = useContext(AuthContext);
 

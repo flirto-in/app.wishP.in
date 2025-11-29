@@ -223,30 +223,55 @@ export function ChatProvider({ children }) {
   );
 
   /**
-   * Open temp session (treated as a room)
+   * Open temp session (treated as 1-to-1 E2EE chat, not room)
    */
   const openTempSession = useCallback(async (session) => {
     if (!session) return;
     console.log('🚧 Opening temp session:', session);
     setActiveTempSession(session);
-    const roomId = `temp_room_${session.code}`;
-    setActiveChat({
-      _id: roomId,
-      U_Id: session.alias,
-      isRoom: true,
-      roomId,
-      tempSessionId: session.sessionId,
-      isTemp: true,
-    });
-    if (socketService.isSocketConnected()) {
-      socketService.joinRoom(roomId);
-    }
-    // Load existing ephemeral messages (should be empty typically)
-    try {
-      const data = await chatService.getTempSessionMessages(session.sessionId);
-      setMessages(data.messages || []);
-    } catch (e) {
-      console.warn('Failed loading temp session messages', e);
+
+    // ✅ NEW: Use 1-to-1 mode for E2EE (not room mode)
+    // If there's another participant, use their ID as chat partner
+    const otherParticipantId = session.otherParticipantId;
+
+    if (otherParticipantId) {
+      // Another user joined - establish E2EE session
+      setActiveChat({
+        _id: otherParticipantId, // Chat with other participant
+        U_Id: session.alias,
+        isRoom: false, // ✅ 1-to-1 mode (enables E2EE)
+        tempSessionId: session.sessionId,
+        isTemp: true,
+      });
+
+      // ✅ FIX: Initialize E2EE session for temp chat
+      try {
+        console.log('🔐 Initializing E2EE session for temp chat with:', otherParticipantId);
+        const signalProtocol = (await import('../services/signalProtocol')).default;
+        await signalProtocol.initSession(otherParticipantId);
+        console.log('✅ E2EE session initialized for temp chat');
+      } catch (error) {
+        console.warn('⚠️ E2EE session may already exist or failed to initialize:', error.message);
+        // Continue anyway - session might already exist
+      }
+
+      // Load messages for this temp session
+      try {
+        const data = await chatService.getTempSessionMessages(session.sessionId);
+        setMessages(data.messages || []);
+      } catch (e) {
+        console.warn('Failed loading temp session messages', e);
+      }
+    } else {
+      // Waiting for other participant - show waiting room
+      setActiveChat({
+        _id: `temp_waiting_${session.sessionId}`,
+        U_Id: session.alias,
+        isRoom: false,
+        tempSessionId: session.sessionId,
+        isTemp: true,
+        waiting: true, // Flag to show "waiting for participant" UI
+      });
     }
   }, []);
 
@@ -898,7 +923,7 @@ export function ChatProvider({ children }) {
     deleteChat,
     clearChat,
     muteChat,
-    // New file upload action
+    // New file upload action with E2EE encryption
     uploadFileMessage: async (fileInfo) => {
       if (!activeChat) {
         console.warn('No active chat for file upload');
@@ -906,14 +931,43 @@ export function ChatProvider({ children }) {
       }
       try {
         const isRoom = !!activeChat.isRoom;
+
+        // Import mediaEncryption dynamically
+        const mediaEncryption = (await import('../services/mediaEncryption')).default;
+        const signalProtocol = (await import('../services/signalProtocol')).default;
+
+        // Encrypt file for E2EE transfers (not for rooms/temp sessions)
+        let encryptedData = null;
+        if (!isRoom && e2eeInitialized) {
+          console.log('🔐 Encrypting file before upload...', fileInfo.name);
+          try {
+            // Get session ID for this chat
+            const sessionId = activeChat._id;
+
+            // Encrypt the file
+            encryptedData = await mediaEncryption.encryptFile(fileInfo.uri, sessionId);
+            console.log('✅ File encrypted successfully');
+          } catch (error) {
+            console.error('❌ File encryption failed:', error);
+            throw new Error('File encryption failed: ' + error.message);
+          }
+        } else if (isRoom) {
+          console.log('ℹ️ Room/temp chat - file upload disabled for E2EE compliance');
+          throw new Error('File uploads disabled in rooms for E2EE compliance');
+        }
+
+        // Upload encrypted file to server
         const message = await chatService.uploadFileMessage({
           fileUri: fileInfo.uri,
           fileName: fileInfo.name,
           mimeType: fileInfo.mimeType,
           receiverId: !isRoom ? activeChat._id : undefined,
           roomId: isRoom ? activeChat.roomId : undefined,
-          hideInTemp: !!activeChat.isTemp, // hide in temp room
+          hideInTemp: !!activeChat.isTemp,
+          // E2EE encryption data
+          encryptedData: encryptedData, // Will be null for rooms
         });
+
         if (message && !message.hidden) {
           setMessages((prev) => [...prev, message]);
         }

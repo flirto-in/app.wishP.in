@@ -35,20 +35,17 @@ export default function SettingScreen() {
 
         {/* User Info Section */}
         <View className="bg-dark-surface rounded-lg p-4 mb-4">
-          <Text className="text-lg font-semibold mb-3 text-dark-text-primary">
-            👤 Account
-          </Text>
+          <Text className="text-lg font-semibold mb-3 text-dark-text-primary">👤 Account</Text>
           <View className="flex-row items-center mb-2">
             <Text className="text-sm text-dark-text-secondary flex-1">User ID:</Text>
-            <Text className="text-sm text-dark-text-primary font-mono">{user?.U_Id || 'Loading...'}</Text>
-          </View>
-          <View className="flex-row items-center">
-            <Text className="text-sm text-dark-text-secondary flex-1">Phone:</Text>
-            <Text className="text-sm text-dark-text-primary">{user?.phoneNumber || 'N/A'}</Text>
+            <Text className="text-sm text-dark-text-primary font-mono">
+              {user?.U_Id || 'Loading...'}
+            </Text>
           </View>
           <View className="mt-3 p-2 bg-yellow-900/20 rounded-lg border border-yellow-700">
             <Text className="text-xs text-yellow-300">
-              ⚠️ Single Device Login: Logging in on another device will automatically log you out here.
+              ⚠️ Single Device Login: Logging in on another device will automatically log you out
+              here.
             </Text>
           </View>
         </View>
@@ -95,7 +92,7 @@ export default function SettingScreen() {
           <Text className="text-lg font-semibold mb-3 text-dark-text-primary">
             📄 Legal & Privacy
           </Text>
-          
+
           <TouchableOpacity
             onPress={openPrivacyPolicy}
             className="flex-row items-center justify-between p-3 bg-dark-bg rounded-lg mb-2"
@@ -119,29 +116,9 @@ export default function SettingScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Test User Info for Play Store Review */}
-        <View className="bg-dark-surface rounded-lg p-4 mb-4 border border-blue-700">
-          <Text className="text-lg font-semibold mb-3 text-blue-400">
-            🎮 Test Account (Play Store Review)
-          </Text>
-          <View className="p-3 bg-blue-900/20 rounded-lg">
-            <Text className="text-sm text-blue-300 mb-1">
-              <Text className="font-bold">Phone:</Text> +91 9852041676
-            </Text>
-            <Text className="text-sm text-blue-300">
-              <Text className="font-bold">OTP:</Text> 7962 (Fixed)
-            </Text>
-            <Text className="text-xs text-blue-400 mt-2">
-              Note: This is a test account for Play Store reviewers. The OTP is fixed for review builds.
-            </Text>
-          </View>
-        </View>
-
         {/* App Info Section */}
         <View className="bg-dark-surface rounded-lg p-4 mb-4">
-          <Text className="text-lg font-semibold mb-3 text-dark-text-primary">
-            ℹ️ About
-          </Text>
+          <Text className="text-lg font-semibold mb-3 text-dark-text-primary">ℹ️ About</Text>
           <Text className="text-sm text-dark-text-secondary mb-2">
             <Text className="font-semibold">Version:</Text> 1.0.0
           </Text>

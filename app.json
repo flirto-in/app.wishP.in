@@ -13,6 +13,7 @@
       "bundleIdentifier": "com.whisp.app"
     },
     "android": {
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

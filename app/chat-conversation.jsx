@@ -54,6 +54,10 @@ export default function ChatConversationScreen() {
   const inputRef = useRef(null);
   const sendButtonScale = useRef(new Animated.Value(0.8)).current;
 
+  // Cache for decrypted media (messageId -> local URI)
+  const [decryptedMedia, setDecryptedMedia] = useState({});
+  const [decryptingMedia, setDecryptingMedia] = useState({}); // Track decryption in progress
+
   const isRoomMode = isPublicRoom === 'true' || !!roomId;
 
   // Animate send button when text changes
@@ -230,6 +234,97 @@ export default function ChatConversationScreen() {
     }
   };
 
+  /**
+   * Decrypt and display encrypted media
+   */
+  const handleDecryptMedia = async (message) => {
+    try {
+      // Check if already decrypted
+      if (decryptedMedia[message._id]) {
+        console.log('✅ Already decrypted, using cached version');
+        return;
+      }
+
+      // Check if decryption in progress
+      if (decryptingMedia[message._id]) {
+        console.log('⏳ Decryption already in progress');
+        return;
+      }
+
+      setDecryptingMedia((prev) => ({ ...prev, [message._id]: true }));
+
+      console.log('🔓 Decrypting media...', message.originalFileName);
+
+      // Import mediaEncryption and signalProtocol
+      const mediaEncryption = (await import('../src/services/mediaEncryption')).default;
+
+      // Download encrypted blob from Cloudinary
+      console.log('📥 Downloading encrypted blob from:', message.mediaUrl);
+      const response = await fetch(message.mediaUrl);
+      const encryptedBlobArrayBuffer = await response.arrayBuffer();
+
+      // Convert ArrayBuffer to base64
+      const uint8Array = new Uint8Array(encryptedBlobArrayBuffer);
+      let binaryString = '';
+      for (let i = 0; i < uint8Array.length; i++) {
+        binaryString += String.fromCharCode(uint8Array[i]);
+      }
+      const encryptedBlobBase64 = btoa(binaryString);
+
+      // Get sender ID for session
+      const senderId = message.senderId?._id || message.senderId;
+
+      // Parse encryptedFileKey if it's a string
+      let encryptedFileKey = message.encryptedFileKey;
+      if (typeof encryptedFileKey === 'string') {
+        try {
+          encryptedFileKey = JSON.parse(encryptedFileKey);
+        } catch (e) {
+          // Already an object
+        }
+      }
+
+      console.log('🔑 Decrypting file key...');
+      // Decrypt the file
+      const decryptedBytes = await mediaEncryption.decryptFile(
+        encryptedBlobBase64,
+        encryptedFileKey,
+        message.fileNonce,
+        senderId,
+      );
+
+      console.log('💾 Saving decrypted file...');
+      // Save to local filesystem
+      const localUri = await mediaEncryption.saveDecryptedFile(
+        decryptedBytes,
+        message.originalFileName || 'decrypted_file',
+      );
+
+      console.log('✅ File decrypted and saved:', localUri);
+
+      // Cache the decrypted URI
+      setDecryptedMedia((prev) => ({ ...prev, [message._id]: localUri }));
+      setDecryptingMedia((prev) => {
+        const newState = { ...prev };
+        delete newState[message._id];
+        return newState;
+      });
+
+      Alert.alert('Success', 'Media decrypted successfully');
+    } catch (error) {
+      console.error('❌ Decryption failed:', error);
+      setDecryptingMedia((prev) => {
+        const newState = { ...prev };
+        delete newState[message._id];
+        return newState;
+      });
+      Alert.alert(
+        'Decryption Failed',
+        error.message || 'Could not decrypt media. Keys may be missing.',
+      );
+    }
+  };
+
   const renderMessage = ({ item: message }) => {
     const senderId = message.senderId?._id || message.senderId;
     const currentUserId = user?._id;
@@ -278,18 +373,68 @@ export default function ChatConversationScreen() {
               {isDeleted ? 'This message was deleted' : message.text || message.encryptedText}
             </Text>
           )}
-          {message.messageType === 'image' && message.mediaUrl && (
+
+          {/* Encrypted Image Display */}
+          {message.messageType === 'image' && message.mediaUrl && message.encryptedFileKey && (
+            <View>
+              {decryptedMedia[message._id] ? (
+                // Show decrypted image
+                <Image
+                  source={{ uri: decryptedMedia[message._id] }}
+                  style={{ width: 180, height: 180, borderRadius: 12, marginBottom: 4 }}
+                  resizeMode="cover"
+                />
+              ) : (
+                // Show encrypted placeholder with decrypt button
+                <TouchableOpacity
+                  onPress={() => handleDecryptMedia(message)}
+                  disabled={decryptingMedia[message._id]}
+                  style={{
+                    width: 180,
+                    height: 180,
+                    borderRadius: 12,
+                    marginBottom: 4,
+                    backgroundColor: isMyMessage ? '#1E3A8A' : '#1F2937',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    borderWidth: 1,
+                    borderColor: isMyMessage ? '#60A5FA' : '#374151',
+                  }}
+                >
+                  {decryptingMedia[message._id] ? (
+                    <View className="items-center">
+                      <ActivityIndicator size="large" color="#60A5FA" />
+                      <Text className="text-blue-300 text-xs mt-2">Decrypting...</Text>
+                    </View>
+                  ) : (
+                    <View className="items-center">
+                      <Ionicons name="lock-closed" size={32} color="#60A5FA" />
+                      <Text className="text-blue-300 text-xs mt-2 font-semibold">
+                        Encrypted Image
+                      </Text>
+                      <Text className="text-blue-400 text-xs mt-1">Tap to decrypt</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {/* Legacy Plaintext Image Display */}
+          {message.messageType === 'image' && message.mediaUrl && !message.encryptedFileKey && (
             <Image
               source={{ uri: message.mediaUrl }}
               style={{ width: 180, height: 180, borderRadius: 12, marginBottom: 4 }}
               resizeMode="cover"
             />
           )}
+
+          {/* File Display (encrypted or plaintext) */}
           {message.messageType === 'file' && message.mediaUrl && (
             <View className="mb-2">
               <View className="flex-row items-center mb-1">
                 <Ionicons
-                  name="document-text-outline"
+                  name={message.encryptedFileKey ? 'lock-closed' : 'document-text-outline'}
                   size={18}
                   color={isMyMessage ? '#fff' : '#3B82F6'}
                 />
@@ -297,17 +442,31 @@ export default function ChatConversationScreen() {
                   numberOfLines={1}
                   className={`ml-2 flex-1 text-xs ${isMyMessage ? 'text-blue-100' : 'text-dark-text-primary'}`}
                 >
-                  {message.mediaUrl.split('/').pop()?.split('?')[0] || 'file'}
+                  {message.originalFileName ||
+                    message.mediaUrl.split('/').pop()?.split('?')[0] ||
+                    'file'}
                 </Text>
               </View>
+              {message.encryptedFileKey && (
+                <Text className={`text-xs mb-1 ${isMyMessage ? 'text-blue-200' : 'text-gray-400'}`}>
+                  🔐 Encrypted
+                </Text>
+              )}
               <TouchableOpacity
-                onPress={() => handleDownload(message)}
+                onPress={() =>
+                  message.encryptedFileKey ? handleDecryptMedia(message) : handleDownload(message)
+                }
+                disabled={decryptingMedia[message._id]}
                 className={`px-3 py-1 rounded-lg ${isMyMessage ? 'bg-blue-700' : 'bg-dark-border'}`}
               >
                 <Text
                   className={`text-xs ${isMyMessage ? 'text-white' : 'text-dark-text-primary'}`}
                 >
-                  Download
+                  {decryptingMedia[message._id]
+                    ? 'Decrypting...'
+                    : message.encryptedFileKey
+                      ? 'Decrypt & Save'
+                      : 'Download'}
                 </Text>
               </TouchableOpacity>
             </View>

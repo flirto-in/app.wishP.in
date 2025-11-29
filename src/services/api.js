@@ -1,16 +1,17 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import logger from '../utils/logger';
 
-// Production server configuration
+// API server configuration from environment variables
 const getServerURL = () => {
-  // Production server hosted on Vercel
-  const PRODUCTION_URL = 'https://apiwhisp.vercel.app/api/v1';
-  
-  // For local development, uncomment below:
-  // const LOCAL_URL = 'http://10.59.76.54:8000/api/v1';
-  // return LOCAL_URL;
-  
-  return PRODUCTION_URL;
+  const baseURL = process.env.EXPO_PUBLIC_API_URL;
+
+  if (!baseURL) {
+    logger.error('❌ EXPO_PUBLIC_API_URL is not defined in .env file');
+    throw new Error('API URL not configured. Please check your .env file.');
+  }
+
+  return `${baseURL}/api/v1`;
 };
 
 // Create axios instance with base configuration
@@ -42,15 +43,15 @@ api.interceptors.request.use(
         }
       }
 
-      console.log('📤 Request:', config.method.toUpperCase(), config.url);
+      logger.log('📤 Request:', config.method.toUpperCase(), config.url);
       return config;
     } catch (error) {
-      console.error('Error in request interceptor:', error);
+      logger.error('Error in request interceptor:', error);
       return config;
     }
   },
   (error) => {
-    console.error('Request error:', error);
+    logger.error('Request error:', error);
     return Promise.reject(error);
   },
 );
@@ -58,7 +59,7 @@ api.interceptors.request.use(
 // Response interceptor - Handle errors globally
 api.interceptors.response.use(
   (response) => {
-    console.log('✅ Response:', response.status, response.config.url);
+    logger.log('✅ Response:', response.status, response.config.url);
     return response;
   },
   async (error) => {
@@ -67,40 +68,40 @@ api.interceptors.response.use(
       // Server responded with error status
       const { status, data } = error.response;
 
-      console.error('❌ HTTP Error:', status, error.config.url);
+      logger.error('❌ HTTP Error:', status, error.config.url);
 
       switch (status) {
         case 401:
           // Unauthorized - token expired or invalid
-          console.log('🔒 Unauthorized - clearing token');
+          logger.log('🔒 Unauthorized - clearing token');
           await SecureStore.deleteItemAsync('userToken');
           // You can trigger logout here or refresh token
           break;
 
         case 403:
           // Forbidden
-          console.error('🚫 Forbidden:', data.message);
+          logger.error('🚫 Forbidden:', data.message);
           break;
 
         case 404:
           // Not found
-          console.error('🔍 Not found:', error.config.url);
+          logger.error('🔍 Not found:', error.config.url);
           break;
 
         case 500:
           // Server error
-          console.error('🔥 Server error:', data.message);
+          logger.error('🔥 Server error:', data.message);
           break;
 
         default:
-          console.error('Error:', data.message || 'Unknown error');
+          logger.error('Error:', data.message || 'Unknown error');
       }
     } else if (error.request) {
       // Request made but no response (network error)
-      console.error('🌐 Network error - no response received');
+      logger.error('🌐 Network error - no response received');
     } else {
       // Error setting up the request
-      console.error('⚙️ Request setup error:', error.message);
+      logger.error('⚙️ Request setup error:', error.message);
     }
 
     return Promise.reject(error);

@@ -11,7 +11,12 @@
     "lint": "eslint . --ext .js,.jsx",
     "lint:fix": "eslint . --ext .js,.jsx --fix",
     "format": "prettier --write .",
-    "fix": "npm run format && npm run lint:fix "
+    "fix": "npm run format && npm run lint:fix ",
+    "prebuild": "npx expo prebuild --clean",
+    "build:apk": "cd android && .\\gradlew assembleRelease",
+    "build:aab": "cd android && .\\gradlew bundleRelease",
+    "build:apk:unix": "cd android && ./gradlew assembleRelease",
+    "build:aab:unix": "cd android && ./gradlew bundleRelease"
   },
   "expo": {
     "plugins": [
@@ -25,6 +30,7 @@
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
     "axios": "^1.12.2",
+    "buffer": "^6.0.3",
     "expo": "54.0.25",
     "expo-barcode-scanner": "^13.0.1",
     "expo-clipboard": "~8.0.7",

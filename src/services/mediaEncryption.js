@@ -14,6 +14,7 @@
 import e2eeService from './e2eeService';
 import signalProtocol from './signalProtocol';
 import * as FileSystem from 'expo-file-system';
+import logger from '../utils/logger';
 
 class MediaEncryption {
   /**
@@ -56,7 +57,7 @@ class MediaEncryption {
     const fileName = fileUri.split('/').pop();
     const mimeType = this.guessMimeType(fileName);
 
-    console.log(
+    logger.log(
       `✅ File encrypted: ${fileName} (${fileBytes.length} bytes → ${encryptedBlob.length} bytes)`,
     );
 
@@ -91,7 +92,7 @@ class MediaEncryption {
 
     const decryptedBytes = await e2eeService.decryptAEAD(encryptedBlob, fileKey, fileNonce, null);
 
-    console.log(`✅ File decrypted: ${decryptedBytes.length} bytes`);
+    logger.log(`✅ File decrypted: ${decryptedBytes.length} bytes`);
 
     return decryptedBytes;
   }
@@ -111,7 +112,7 @@ class MediaEncryption {
       encoding: FileSystem.EncodingType.Base64,
     });
 
-    console.log(`✅ Decrypted file saved: ${destPath}`);
+    logger.log(`✅ Decrypted file saved: ${destPath}`);
 
     return destPath;
   }

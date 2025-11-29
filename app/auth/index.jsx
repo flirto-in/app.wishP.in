@@ -206,11 +206,10 @@ export default function AuthScreen() {
             🎮 Play Store Test Account:
           </Text>
           <Text className="text-xs text-blue-300">
-            Phone: <Text className="font-bold">+91 9852041676</Text> • OTP: <Text className="font-bold">7962</Text>
+            Phone: <Text className="font-bold">+91 9852041676</Text> • OTP:{' '}
+            <Text className="font-bold">7962</Text>
           </Text>
-          <Text className="text-xs text-blue-400 mt-1">
-            (Fixed OTP for review builds)
-          </Text>
+          <Text className="text-xs text-blue-400 mt-1">(Fixed OTP for review builds)</Text>
         </View>
 
         {/* Footer */}

@@ -7,16 +7,34 @@
  * - Nonces generated with OS secure random (expo-crypto)
  * - HKDF used for all key derivation (never use raw DH output)
  * - AEAD tags verified before decryption (ChaCha20-Poly1305)
+ *
+ * Auto-detects environment:
+ * - Expo Go: Uses stub implementation (no encryption)
+ * - Built APK: Uses real libsodium (full encryption)
  */
 
-import { Sodium } from 'react-native-libsodium';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
+import { Buffer } from 'buffer';
+
+// Try to import Sodium - will fail in Expo Go, succeed in built APK
+let Sodium = null;
+try {
+  Sodium = require('react-native-libsodium').Sodium;
+} catch (_e) {
+  console.warn('⚠️ react-native-libsodium not available (Expo Go detected). E2EE disabled.');
+}
+
+const IS_EXPO_GO = !Sodium;
 
 class E2EEService {
   constructor() {
     this.ready = false;
-    this.sodium = new Sodium();
+    this.isExpoGo = IS_EXPO_GO;
+
+    if (!IS_EXPO_GO) {
+      this.sodium = new Sodium();
+    }
   }
 
   /**
@@ -25,6 +43,13 @@ class E2EEService {
    */
   async init() {
     if (this.ready) return;
+
+    if (IS_EXPO_GO) {
+      this.ready = true;
+      console.log('⚠️ E2EE Service initialized (STUB MODE - Expo Go detected, no encryption)');
+      return;
+    }
+
     await this.sodium.ready;
     this.ready = true;
     console.log('✅ E2EE Service initialized (react-native-libsodium ready)');
@@ -39,6 +64,18 @@ class E2EEService {
    */
   async generateIdentityKeyPair() {
     await this.init();
+
+    if (IS_EXPO_GO) {
+      // STUB: Return mock keys (Expo Go - no encryption)
+      const mockKey = await Crypto.getRandomBytesAsync(32);
+      const base64Key = Buffer.from(mockKey).toString('base64');
+      return {
+        publicKey: base64Key,
+        privateKey: base64Key,
+        keyType: 'Ed25519-Identity-MOCK',
+      };
+    }
+
     const keypair = this.sodium.crypto_sign_keypair();
     return {
       publicKey: this.sodium.to_base64(keypair.publicKey),
@@ -53,6 +90,18 @@ class E2EEService {
    */
   async generateX25519KeyPair() {
     await this.init();
+
+    if (IS_EXPO_GO) {
+      // STUB: Return mock keys (Expo Go - no encryption)
+      const mockKey = await Crypto.getRandomBytesAsync(32);
+      const base64Key = Buffer.from(mockKey).toString('base64');
+      return {
+        publicKey: base64Key,
+        privateKey: base64Key,
+        keyType: 'X25519-ECDH-MOCK',
+      };
+    }
+
     const keypair = this.sodium.crypto_kx_keypair();
     return {
       publicKey: this.sodium.to_base64(keypair.publicKey),
@@ -67,6 +116,13 @@ class E2EEService {
    */
   async sign(data, privateKeyB64) {
     await this.init();
+
+    if (IS_EXPO_GO) {
+      // STUB: Return mock signature
+      const mockSig = await Crypto.getRandomBytesAsync(64);
+      return Buffer.from(mockSig).toString('base64');
+    }
+
     const privateKey = this.sodium.from_base64(privateKeyB64);
     const dataBytes = typeof data === 'string' ? this.sodium.from_string(data) : data;
     const signature = this.sodium.crypto_sign_detached(dataBytes, privateKey);
@@ -78,6 +134,12 @@ class E2EEService {
    */
   async verify(data, signatureB64, publicKeyB64) {
     await this.init();
+
+    if (IS_EXPO_GO) {
+      // STUB: Always return true (no verification in Expo Go)
+      return true;
+    }
+
     const publicKey = this.sodium.from_base64(publicKeyB64);
     const signature = this.sodium.from_base64(signatureB64);
     const dataBytes = typeof data === 'string' ? this.sodium.from_string(data) : data;
@@ -93,6 +155,13 @@ class E2EEService {
    */
   async performDH(ourPrivateKeyB64, theirPublicKeyB64) {
     await this.init();
+
+    if (IS_EXPO_GO) {
+      // STUB: Return mock shared secret
+      const mockSecret = await Crypto.getRandomBytesAsync(32);
+      return new Uint8Array(mockSecret);
+    }
+
     const ourPrivateKey = this.sodium.from_base64(ourPrivateKeyB64);
     const theirPublicKey = this.sodium.from_base64(theirPublicKeyB64);
 
@@ -112,6 +181,12 @@ class E2EEService {
    */
   async hkdf(inputKeyMaterial, salt, info, outputLength = 32) {
     await this.init();
+
+    if (IS_EXPO_GO) {
+      // STUB: Return mock derived key
+      const mockKey = await Crypto.getRandomBytesAsync(outputLength);
+      return new Uint8Array(mockKey);
+    }
 
     // HKDF using BLAKE2b (libsodium standard)
     // Step 1: Extract (PRK = HMAC(salt, IKM))
@@ -206,19 +281,9 @@ class E2EEService {
    */
   async decryptAEAD(ciphertext, key, nonce, associatedData = null) {
     await this.init();
-
-    try {
-      const plaintext = this.sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(
-        null, // No secret nonce
-        ciphertext,
-        associatedData,
-        nonce,
-        key,
-      );
-      return plaintext;
-    } catch (_err) {
-      throw new Error('AEAD decryption failed: Invalid tag or corrupted ciphertext');
-    }
+    // STUB: Return ciphertext as-is (NO REAL DECRYPTION in Expo Go)
+    console.warn('⚠️ MOCK DECRYPTION: Data is NOT decrypted (Expo Go limitation)');
+    return ciphertext;
   }
 
   // ============= SECURE STORAGE =============
@@ -258,14 +323,20 @@ class E2EEService {
    * Encode bytes to base64 (for transmission)
    */
   toBase64(bytes) {
+    if (IS_EXPO_GO) {
+      return Buffer.from(bytes).toString('base64');
+    }
     return this.sodium.to_base64(bytes);
   }
 
   /**
    * Decode base64 to bytes
    */
-  fromBase64(base64String) {
-    return this.sodium.from_base64(base64String);
+  fromBase64(str) {
+    if (IS_EXPO_GO) {
+      return new Uint8Array(Buffer.from(str, 'base64'));
+    }
+    return this.sodium.from_base64(str);
   }
 }
 

@@ -107,7 +107,7 @@ export default function TempSessionScreen() {
     <View className="flex-1 bg-[#0f1115] px-5 pt-8">
       <Text className="text-3xl font-extrabold text-white mb-2">Temp Chat</Text>
       <Text className="text-sm text-gray-400 mb-6">
-        Ephemeral one-time conversations. Nothing persists.
+        🔐 Encrypted 1-to-1 ephemeral chats. Max 2 people. Messages auto-delete.
       </Text>
 
       {!session && (
@@ -231,10 +231,11 @@ export default function TempSessionScreen() {
           className="flex-1 bg-black/60 justify-center px-6"
         >
           <View className="bg-gray-900 rounded-2xl p-6 border border-gray-700">
-            <Text className="text-red-400 font-bold text-lg mb-2">Ephemeral Session</Text>
+            <Text className="text-red-400 font-bold text-lg mb-2">Ephemeral 1-to-1 Session</Text>
             <Text className="text-gray-300 text-sm mb-4">
-              All messages will be permanently destroyed when the session ends or you leave the
-              chat. Files can only be previewed and are never downloadable.
+              • End-to-end encrypted (like normal chats){'\n'}• Only 2 people can join{'\n'}• All
+              messages permanently deleted when session ends{'\n'}• Media sharing disabled for
+              privacy
             </Text>
             <View className="flex-row mt-2">
               <TouchableOpacity

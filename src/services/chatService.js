@@ -236,10 +236,10 @@ export const chatService = {
     }
   },
   /**
-   * Upload a file (normal chat or room). Hidden if temp unless explicitly allowed.
+   * Upload a file (normal chat or room). Supports E2EE encrypted files.
    * @api /messages/upload
    * @method POST multipart/form-data
-   * @param {Object} params { fileUri, fileName, mimeType, receiverId?, roomId?, hideInTemp? }
+   * @param {Object} params { fileUri, fileName, mimeType, receiverId?, roomId?, hideInTemp?, encryptedData? }
    */
   uploadFileMessage: async ({
     fileUri,
@@ -248,14 +248,50 @@ export const chatService = {
     receiverId,
     roomId,
     hideInTemp = true,
+    encryptedData = null, // { encryptedBlob, encryptedFileKey, fileNonce, originalName, mimeType }
   }) => {
     try {
       const formData = new FormData();
-      formData.append('file', {
-        uri: fileUri,
-        name: fileName || 'upload',
-        type: mimeType || 'application/octet-stream',
-      });
+
+      // If file is encrypted, upload encrypted blob
+      if (encryptedData) {
+        console.log('📦 Preparing encrypted file upload...', encryptedData.originalName);
+
+        // Convert base64 encrypted blob to blob for upload
+        // Create a Blob from base64 encryptedBlob
+        const encryptedBlobBase64 = encryptedData.encryptedBlob;
+
+        // Convert base64 to binary
+        const binaryString = atob(encryptedBlobBase64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        formData.append('file', {
+          uri: `data:application/octet-stream;base64,${encryptedBlobBase64}`,
+          name: `encrypted_${encryptedData.originalName}`,
+          type: 'application/octet-stream', // Encrypted blobs are binary
+        });
+
+        // Add E2EE metadata
+        formData.append('isEncrypted', 'true');
+        formData.append('encryptedFileKey', JSON.stringify(encryptedData.encryptedFileKey));
+        formData.append('fileNonce', encryptedData.fileNonce);
+        formData.append('originalFileName', encryptedData.originalName);
+        formData.append('fileMimeType', encryptedData.mimeType);
+
+        console.log('✅ Encrypted file prepared for upload');
+      } else {
+        // Upload plaintext file (legacy or rooms)
+        formData.append('file', {
+          uri: fileUri,
+          name: fileName || 'upload',
+          type: mimeType || 'application/octet-stream',
+        });
+        formData.append('isEncrypted', 'false');
+      }
+
       if (receiverId) formData.append('receiverId', receiverId);
       if (roomId) formData.append('roomId', roomId);
       if (hideInTemp) formData.append('hideInTemp', 'true');
@@ -263,6 +299,8 @@ export const chatService = {
       const response = await api.post('/messages/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+
+      console.log('✅ File uploaded to server:', response.data?.data?.message?.mediaUrl);
       return response.data?.data?.message;
     } catch (error) {
       console.error('❌ Failed to upload file message:', error);
