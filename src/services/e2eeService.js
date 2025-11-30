@@ -16,17 +16,26 @@ import * as SecureStore from 'expo-secure-store';
 
 // Native Sodium Library - REQUIRED
 let Sodium;
+let sodiumLoadError = null;
+
 try {
   Sodium = require('react-native-libsodium').Sodium;
-} catch (_e) {
-  console.error('❌ FATAL: react-native-libsodium not found. E2EE requires a native build.');
-  throw new Error('E2EE requires native build. Expo Go is not supported.');
+} catch (e) {
+  console.error('❌ react-native-libsodium not found. E2EE requires a native build.');
+  console.warn('⚠️ Deferring error to init() to allow app to load');
+  sodiumLoadError = e;
+  // Don't throw here - allow app to load, error will be thrown in init()
 }
 
 class E2EEService {
   constructor() {
     this.ready = false;
-    this.sodium = new Sodium();
+    // Only create Sodium instance if it loaded successfully
+    if (Sodium && !sodiumLoadError) {
+      this.sodium = new Sodium();
+    } else {
+      this.sodium = null;
+    }
   }
 
   /**
@@ -35,6 +44,13 @@ class E2EEService {
    */
   async init() {
     if (this.ready) return;
+
+    // Now throw the error if libsodium failed to load
+    if (sodiumLoadError || !this.sodium) {
+      throw new Error(
+        'E2EE requires native build. react-native-libsodium not found. Please rebuild the app with native modules.',
+      );
+    }
 
     await this.sodium.ready;
     this.ready = true;
@@ -128,20 +144,20 @@ class E2EEService {
 
     const combinedSecret = dh4
       ? (() => {
-          const result = new Uint8Array(dh1.length + dh2.length + dh3.length + dh4.length);
-          result.set(dh1, 0);
-          result.set(dh2, dh1.length);
-          result.set(dh3, dh1.length + dh2.length);
-          result.set(dh4, dh1.length + dh2.length + dh3.length);
-          return result;
-        })()
+        const result = new Uint8Array(dh1.length + dh2.length + dh3.length + dh4.length);
+        result.set(dh1, 0);
+        result.set(dh2, dh1.length);
+        result.set(dh3, dh1.length + dh2.length);
+        result.set(dh4, dh1.length + dh2.length + dh3.length);
+        return result;
+      })()
       : (() => {
-          const result = new Uint8Array(dh1.length + dh2.length + dh3.length);
-          result.set(dh1, 0);
-          result.set(dh2, dh1.length);
-          result.set(dh3, dh1.length + dh2.length);
-          return result;
-        })();
+        const result = new Uint8Array(dh1.length + dh2.length + dh3.length);
+        result.set(dh1, 0);
+        result.set(dh2, dh1.length);
+        result.set(dh3, dh1.length + dh2.length);
+        return result;
+      })();
 
     const derivedKeys = await this.hkdf(combinedSecret, 'WhispChat-X3DH-V1', 'RootChainKeys', 64);
 

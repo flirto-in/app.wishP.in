@@ -2,7 +2,7 @@ import { Stack } from 'expo-router';
 import { useContext } from 'react';
 import '../global.css';
 import { AuthContext, AuthProvider } from '../src/context/AuthContext';
-import { ChatProvider } from '../src/context/ChatContext';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 // Polyfills for crypto operations
 import { Buffer } from 'buffer';
@@ -16,26 +16,26 @@ function RootNavigator() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Protected guard={!user}>
-        <Stack.Screen name="auth/index" />
-        <Stack.Screen name="auth/verify" />
-      </Stack.Protected>
+      {/* Index route will handle redirects */}
+      <Stack.Screen name="index" />
 
-      <Stack.Protected guard={!!user}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="temp-session" />
-        <Stack.Screen name="feedback" />
-      </Stack.Protected>
+      {/* Auth screens */}
+      <Stack.Screen name="auth/index" />
+      <Stack.Screen name="auth/verify" />
+
+      {/* Authenticated screens */}
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="chat-conversation" />
+      <Stack.Screen name="temp-session" />
+      <Stack.Screen name="feedback" />
     </Stack>
   );
 }
 
-export default function RootLayout() {
-  return (
-    <AuthProvider>
-      <ChatProvider>
-        <RootNavigator />
-      </ChatProvider>
-    </AuthProvider>
-  );
-}
+<ErrorBoundary>
+  <AuthProvider>
+    <ChatProvider>
+      <RootNavigator />
+    </ChatProvider>
+  </AuthProvider>
+</ErrorBoundary>

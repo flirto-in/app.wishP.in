@@ -8,7 +8,9 @@ const getServerURL = () => {
 
   if (!baseURL) {
     logger.error('❌ EXPO_PUBLIC_API_URL is not defined in .env file');
-    throw new Error('API URL not configured. Please check your .env file.');
+    logger.warn('⚠️ Using fallback URL - app may not function correctly');
+    // Return fallback instead of throwing - allows app to load
+    return 'https://api-whisp.onrender.com/api/v1'; // Fallback for production
   }
 
   return `${baseURL}/api/v1`;

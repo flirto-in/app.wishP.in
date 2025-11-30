@@ -8,7 +8,9 @@ const getSocketURL = () => {
 
   if (!socketURL) {
     logger.error('❌ EXPO_PUBLIC_SOCKET_URL is not defined in .env file');
-    throw new Error('Socket URL not configured. Please check your .env file.');
+    logger.warn('⚠️ Using fallback URL - app may not function correctly');
+    // Return fallback instead of throwing - allows app to load
+    return 'https://api-whisp.onrender.com'; // Fallback for production
   }
 
   return socketURL;

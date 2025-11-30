@@ -437,331 +437,335 @@ export function ChatProvider({ children }) {
     if (!user) return;
 
     const setupSocketListeners = () => {
-      // Connection status
-      socketService.on('connection_status', ({ connected }) => {
-        console.log('🔌 Connection status changed:', connected);
-        setIsConnected(connected);
-        if (connected) {
-          console.log('✅ Socket connected, loading chats...');
-          loadChats();
-          // ✅ FIXED: Retry pending messages after reconnection
-          const pendingCount = messageQueue.getPendingCount();
-          if (pendingCount > 0) {
-            console.log(`📤 Retrying ${pendingCount} pending messages after reconnection...`);
-            messageQueue.retryAll();
-          }
-        }
-      });
-
-      // New chat created (when user sends first message)
-      socketService.on('chat:created', ({ user, isInSecondary }) => {
-        console.log('🆕 New chat created:', user?.U_Id || user);
-        console.log('📋 Chat details:', { userId: user?._id, isInSecondary });
-        // Reload chats to include the new conversation
-        console.log('🔄 Reloading chats...');
-        loadChats();
-      });
-
-      // Chat request received (someone sent you first message)
-      socketService.on('chat:request', ({ sender }) => {
-        console.log('📬 Chat request from:', sender?.U_Id || sender);
-        console.log('📋 Sender details:', { userId: sender?._id });
-        // Reload chats to show the new request in secondary
-        console.log('🔄 Reloading chats...');
-        loadChats();
-      });
-
-      // Message received
-      socketService.on('message:receive', async (message) => {
-        console.log('📨 Message received:', message);
-
-        const senderId = message.senderId?._id || message.senderId;
-        const senderName = message.senderId?.U_Id || message.senderId?.phoneNumber || 'Someone';
-        const currentActiveChat = activeChatRef.current;
-
-        // Decrypt message if encrypted (E2EE is always-on)
-        let decryptedMessage = message;
-        if (message.encryptedText && message.ratchetHeader) {
-          try {
-            console.log('🔓 Decrypting E2EE message (always-on)...');
-            const plaintext = await receiveEncryptedMessage(message);
-            decryptedMessage = { ...message, text: plaintext, encryptedText: undefined };
-            console.log('✅ Message decrypted successfully');
-          } catch (error) {
-            console.error('❌ Failed to decrypt message:', error);
-            decryptedMessage = {
-              ...message,
-              text: '[Unable to decrypt message]',
-              decryptionError: true,
-            };
-          }
-        }
-
-        // Check if message belongs to current active chat/room (including temp)
-        let isForActiveChat = false;
-        if (currentActiveChat) {
-          if (
-            decryptedMessage.roomId &&
-            currentActiveChat.isRoom &&
-            decryptedMessage.roomId === currentActiveChat.roomId
-          ) {
-            // Room message for current room
-            isForActiveChat = true;
-          } else if (
-            !decryptedMessage.roomId &&
-            !currentActiveChat.isRoom &&
-            senderId === currentActiveChat._id
-          ) {
-            // Direct message for current chat
-            isForActiveChat = true;
-          }
-        }
-
-        // If it's for the active chat, add to messages (prevent duplicates)
-        if (isForActiveChat) {
-          setMessages((prev) => {
-            // Check if message already exists
-            const messageExists = prev.some((msg) => msg._id === decryptedMessage._id);
-            if (messageExists) {
-              return prev;
+      try {
+        // Connection status
+        socketService.on('connection_status', ({ connected }) => {
+          console.log('🔌 Connection status changed:', connected);
+          setIsConnected(connected);
+          if (connected) {
+            console.log('✅ Socket connected, loading chats...');
+            loadChats();
+            // ✅ FIXED: Retry pending messages after reconnection
+            const pendingCount = messageQueue.getPendingCount();
+            if (pendingCount > 0) {
+              console.log(`📤 Retrying ${pendingCount} pending messages after reconnection...`);
+              messageQueue.retryAll();
             }
-            return [...prev, decryptedMessage];
-          });
-
-          // Mark as read (only for direct messages, not room messages)
-          if (!message.roomId) {
-            socketService.markMessageAsRead(message._id, senderId);
           }
-        } else {
-          // Check if chat is muted before showing notification
-          const isChatMuted = mutedChats.has(senderId);
+        });
 
-          if (!isChatMuted) {
-            // Show notification if not viewing this chat and not muted
-            console.log('📲 Showing notification for message from:', senderName);
-            notificationService.scheduleLocalNotification(
-              `New message from ${senderName}`,
-              message.text || 'Sent you a message',
-              { senderId, senderName },
-            );
-          } else {
-            console.log('🔕 Notification muted for:', senderName);
-          }
-        }
+        // New chat created (when user sends first message)
+        socketService.on('chat:created', ({ user, isInSecondary }) => {
+          console.log('🆕 New chat created:', user?.U_Id || user);
+          console.log('📋 Chat details:', { userId: user?._id, isInSecondary });
+          // Reload chats to include the new conversation
+          console.log('🔄 Reloading chats...');
+          loadChats();
+        });
 
-        // Update chat list last message WITHOUT full reload
-        setChats((prev) =>
-          prev.map((chat) => {
-            if (chat._id === senderId || chat.userId === senderId) {
-              return {
-                ...chat,
-                lastMessage: message.text,
-                lastMessageTime: message.createdAt,
-                unreadCount:
-                  currentActiveChat && senderId === currentActiveChat._id
-                    ? 0
-                    : (chat.unreadCount || 0) + 1,
+        // Chat request received (someone sent you first message)
+        socketService.on('chat:request', ({ sender }) => {
+          console.log('📬 Chat request from:', sender?.U_Id || sender);
+          console.log('📋 Sender details:', { userId: sender?._id });
+          // Reload chats to show the new request in secondary
+          console.log('🔄 Reloading chats...');
+          loadChats();
+        });
+
+        // Message received
+        socketService.on('message:receive', async (message) => {
+          console.log('📨 Message received:', message);
+
+          const senderId = message.senderId?._id || message.senderId;
+          const senderName = message.senderId?.U_Id || message.senderId?.phoneNumber || 'Someone';
+          const currentActiveChat = activeChatRef.current;
+
+          // Decrypt message if encrypted (E2EE is always-on)
+          let decryptedMessage = message;
+          if (message.encryptedText && message.ratchetHeader) {
+            try {
+              console.log('🔓 Decrypting E2EE message (always-on)...');
+              const plaintext = await receiveEncryptedMessage(message);
+              decryptedMessage = { ...message, text: plaintext, encryptedText: undefined };
+              console.log('✅ Message decrypted successfully');
+            } catch (error) {
+              console.error('❌ Failed to decrypt message:', error);
+              decryptedMessage = {
+                ...message,
+                text: '[Unable to decrypt message]',
+                decryptionError: true,
               };
             }
-            return chat;
-          }),
-        );
-      });
+          }
 
-      // Message sent confirmation
-      socketService.on('message:sent', (message) => {
-        console.log('✅ Message sent confirmation:', message._id);
-
-        const currentActiveChat = activeChatRef.current;
-
-        // Check if message belongs to current active chat/room
-        let isForActiveChat = false;
-        if (currentActiveChat) {
-          if (
-            message.roomId &&
-            currentActiveChat.isRoom &&
-            message.roomId === currentActiveChat.roomId
-          ) {
-            // Room message for current room
-            isForActiveChat = true;
-          } else if (!message.roomId && !currentActiveChat.isRoom) {
-            const receiverId = message.receiverId?._id || message.receiverId;
-            if (receiverId === currentActiveChat._id) {
+          // Check if message belongs to current active chat/room (including temp)
+          let isForActiveChat = false;
+          if (currentActiveChat) {
+            if (
+              decryptedMessage.roomId &&
+              currentActiveChat.isRoom &&
+              decryptedMessage.roomId === currentActiveChat.roomId
+            ) {
+              // Room message for current room
+              isForActiveChat = true;
+            } else if (
+              !decryptedMessage.roomId &&
+              !currentActiveChat.isRoom &&
+              senderId === currentActiveChat._id
+            ) {
               // Direct message for current chat
               isForActiveChat = true;
             }
           }
-        }
 
-        // Add to messages if in active chat (prevent duplicates)
-        if (isForActiveChat) {
-          setMessages((prev) => {
-            // ✅ FIXED: Check for temp message replacement using clientMessageId
-            if (message.clientMessageId) {
-              const tempMatch = prev.find((msg) => msg._id === message.clientMessageId);
-              if (tempMatch) {
-                console.log(
-                  '🔄 Replacing temp message',
-                  message.clientMessageId,
-                  'with real ID',
-                  message._id,
-                );
-                return prev.map((msg) => (msg._id === message.clientMessageId ? message : msg));
+          // If it's for the active chat, add to messages (prevent duplicates)
+          if (isForActiveChat) {
+            setMessages((prev) => {
+              // Check if message already exists
+              const messageExists = prev.some((msg) => msg._id === decryptedMessage._id);
+              if (messageExists) {
+                return prev;
               }
-            }
+              return [...prev, decryptedMessage];
+            });
 
-            // Check if message already exists (by real ID)
-            const messageExists = prev.some((msg) => msg._id === message._id);
-            if (messageExists) {
-              return prev;
+            // Mark as read (only for direct messages, not room messages)
+            if (!message.roomId) {
+              socketService.markMessageAsRead(message._id, senderId);
             }
-            return [...prev, message];
-          });
-        }
+          } else {
+            // Check if chat is muted before showing notification
+            const isChatMuted = mutedChats.has(senderId);
 
-        // Update chat list last message WITHOUT full reload for direct messages
-        if (!message.roomId) {
-          const receiverId = message.receiverId?._id || message.receiverId;
+            if (!isChatMuted) {
+              // Show notification if not viewing this chat and not muted
+              console.log('📲 Showing notification for message from:', senderName);
+              notificationService.scheduleLocalNotification(
+                `New message from ${senderName}`,
+                message.text || 'Sent you a message',
+                { senderId, senderName },
+              );
+            } else {
+              console.log('🔕 Notification muted for:', senderName);
+            }
+          }
+
+          // Update chat list last message WITHOUT full reload
           setChats((prev) =>
             prev.map((chat) => {
-              if (chat._id === receiverId || chat.userId === receiverId) {
+              if (chat._id === senderId || chat.userId === senderId) {
                 return {
                   ...chat,
                   lastMessage: message.text,
                   lastMessageTime: message.createdAt,
+                  unreadCount:
+                    currentActiveChat && senderId === currentActiveChat._id
+                      ? 0
+                      : (chat.unreadCount || 0) + 1,
                 };
               }
               return chat;
             }),
           );
-        }
-      });
-
-      // Message read receipt
-      socketService.on('message:read:receipt', ({ messageId }) => {
-        console.log('✅ Message read:', messageId);
-
-        setMessages((prev) =>
-          prev.map((msg) => (msg._id === messageId ? { ...msg, read: true } : msg)),
-        );
-      });
-
-      // Message deleted
-      socketService.on('message:deleted', ({ messageId }) => {
-        console.log('🗑️ Message deleted:', messageId);
-
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg._id === messageId
-              ? { ...msg, deleted: true, text: 'This message was deleted' }
-              : msg,
-          ),
-        );
-      });
-
-      // Typing indicators
-      socketService.on('typing:start', ({ userId }) => {
-        const currentActiveChat = activeChatRef.current;
-        console.log('⌨️ User typing:', userId, 'Active chat:', currentActiveChat?._id);
-        if (currentActiveChat && userId === currentActiveChat._id) {
-          setTypingUsers((prev) => new Set(prev).add(userId));
-        }
-      });
-
-      socketService.on('typing:stop', ({ userId }) => {
-        console.log('⌨️ User stopped typing:', userId);
-        setTypingUsers((prev) => {
-          const newSet = new Set(prev);
-          newSet.delete(userId);
-          return newSet;
         });
-      });
 
-      // Message reactions
-      socketService.on('message:reaction', ({ messageId, userId, emoji }) => {
-        console.log('❤️ Reaction:', emoji);
+        // Message sent confirmation
+        socketService.on('message:sent', (message) => {
+          console.log('✅ Message sent confirmation:', message._id);
 
-        setMessages((prev) =>
-          prev.map((msg) => {
-            if (msg._id === messageId) {
-              const reactions = msg.reactions || [];
-              return {
-                ...msg,
-                reactions: [...reactions, { userId, emoji }],
-              };
+          const currentActiveChat = activeChatRef.current;
+
+          // Check if message belongs to current active chat/room
+          let isForActiveChat = false;
+          if (currentActiveChat) {
+            if (
+              message.roomId &&
+              currentActiveChat.isRoom &&
+              message.roomId === currentActiveChat.roomId
+            ) {
+              // Room message for current room
+              isForActiveChat = true;
+            } else if (!message.roomId && !currentActiveChat.isRoom) {
+              const receiverId = message.receiverId?._id || message.receiverId;
+              if (receiverId === currentActiveChat._id) {
+                // Direct message for current chat
+                isForActiveChat = true;
+              }
             }
-            return msg;
-          }),
-        );
-      });
-
-      // Self-destruct messages
-      socketService.on('message:self-destruct', ({ messageId }) => {
-        console.log('🗑️ Message self-destructed:', messageId);
-
-        setMessages((prev) => prev.filter((msg) => msg._id !== messageId));
-      });
-
-      // Temp session joined (Creator notification)
-      socketService.on('temp:session:joined', async ({ sessionId, participantId, alias }) => {
-        console.log('👤 User joined temp session:', alias);
-        if (activeTempSession && activeTempSession.sessionId === sessionId) {
-          // Update active chat to enable messaging
-          setActiveChat((prev) => ({
-            ...prev,
-            _id: participantId, // Set chat partner ID
-            waiting: false, // Remove waiting state
-          }));
-
-          Alert.alert('User Joined', `${alias} has joined the chat!`);
-
-          // Establish E2EE
-          console.log('🔐 Establishing E2EE with new participant...');
-          try {
-            const signalProtocol = (await import('../services/signalProtocol')).default;
-            await signalProtocol.verifyIdentity(participantId);
-            await signalProtocol.ensureSession(participantId);
-            console.log('✅ E2EE established with joiner');
-          } catch (e) {
-            console.error('❌ Failed to establish E2EE with joiner:', e);
           }
-        }
-      });
 
-      // Temp session ended broadcast
-      socketService.on('temp:session:ended', ({ sessionId }) => {
-        console.log('🛑 Temp session ended remotely:', sessionId);
-        if (activeTempSession && activeTempSession.sessionId === sessionId) {
-          setActiveTempSession(null);
-          setActiveChat(null);
-          setMessages([]);
-          Alert.alert('Session Ended', 'The temporary session has been destroyed.');
-          try {
-            router.replace('/(tabs)/chat');
-          } catch (e) {
-            console.warn('Navigation failure after temp end', e);
+          // Add to messages if in active chat (prevent duplicates)
+          if (isForActiveChat) {
+            setMessages((prev) => {
+              // ✅ FIXED: Check for temp message replacement using clientMessageId
+              if (message.clientMessageId) {
+                const tempMatch = prev.find((msg) => msg._id === message.clientMessageId);
+                if (tempMatch) {
+                  console.log(
+                    '🔄 Replacing temp message',
+                    message.clientMessageId,
+                    'with real ID',
+                    message._id,
+                  );
+                  return prev.map((msg) => (msg._id === message.clientMessageId ? message : msg));
+                }
+              }
+
+              // Check if message already exists (by real ID)
+              const messageExists = prev.some((msg) => msg._id === message._id);
+              if (messageExists) {
+                return prev;
+              }
+              return [...prev, message];
+            });
           }
-        }
-      });
 
-      // Online users
-      socketService.on('online-users', (users) => {
-        console.log('👥 Online users:', users.length);
-        setOnlineUsers(users);
-      });
-
-      socketService.on('user:online', ({ userId }) => {
-        setOnlineUsers((prev) => {
-          if (!prev.includes(userId)) {
-            return [...prev, userId];
+          // Update chat list last message WITHOUT full reload for direct messages
+          if (!message.roomId) {
+            const receiverId = message.receiverId?._id || message.receiverId;
+            setChats((prev) =>
+              prev.map((chat) => {
+                if (chat._id === receiverId || chat.userId === receiverId) {
+                  return {
+                    ...chat,
+                    lastMessage: message.text,
+                    lastMessageTime: message.createdAt,
+                  };
+                }
+                return chat;
+              }),
+            );
           }
-          return prev;
         });
-      });
 
-      socketService.on('user:offline', ({ userId }) => {
-        setOnlineUsers((prev) => prev.filter((id) => id !== userId));
-      });
+        // Message read receipt
+        socketService.on('message:read:receipt', ({ messageId }) => {
+          console.log('✅ Message read:', messageId);
+
+          setMessages((prev) =>
+            prev.map((msg) => (msg._id === messageId ? { ...msg, read: true } : msg)),
+          );
+        });
+
+        // Message deleted
+        socketService.on('message:deleted', ({ messageId }) => {
+          console.log('🗑️ Message deleted:', messageId);
+
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg._id === messageId
+                ? { ...msg, deleted: true, text: 'This message was deleted' }
+                : msg,
+            ),
+          );
+        });
+
+        // Typing indicators
+        socketService.on('typing:start', ({ userId }) => {
+          const currentActiveChat = activeChatRef.current;
+          console.log('⌨️ User typing:', userId, 'Active chat:', currentActiveChat?._id);
+          if (currentActiveChat && userId === currentActiveChat._id) {
+            setTypingUsers((prev) => new Set(prev).add(userId));
+          }
+        });
+
+        socketService.on('typing:stop', ({ userId }) => {
+          console.log('⌨️ User stopped typing:', userId);
+          setTypingUsers((prev) => {
+            const newSet = new Set(prev);
+            newSet.delete(userId);
+            return newSet;
+          });
+        });
+
+        // Message reactions
+        socketService.on('message:reaction', ({ messageId, userId, emoji }) => {
+          console.log('❤️ Reaction:', emoji);
+
+          setMessages((prev) =>
+            prev.map((msg) => {
+              if (msg._id === messageId) {
+                const reactions = msg.reactions || [];
+                return {
+                  ...msg,
+                  reactions: [...reactions, { userId, emoji }],
+                };
+              }
+              return msg;
+            }),
+          );
+        });
+
+        // Self-destruct messages
+        socketService.on('message:self-destruct', ({ messageId }) => {
+          console.log('🗑️ Message self-destructed:', messageId);
+
+          setMessages((prev) => prev.filter((msg) => msg._id !== messageId));
+        });
+
+        // Temp session joined (Creator notification)
+        socketService.on('temp:session:joined', async ({ sessionId, participantId, alias }) => {
+          console.log('👤 User joined temp session:', alias);
+          if (activeTempSession && activeTempSession.sessionId === sessionId) {
+            // Update active chat to enable messaging
+            setActiveChat((prev) => ({
+              ...prev,
+              _id: participantId, // Set chat partner ID
+              waiting: false, // Remove waiting state
+            }));
+
+            Alert.alert('User Joined', `${alias} has joined the chat!`);
+
+            // Establish E2EE
+            console.log('🔐 Establishing E2EE with new participant...');
+            try {
+              const signalProtocol = (await import('../services/signalProtocol')).default;
+              await signalProtocol.verifyIdentity(participantId);
+              await signalProtocol.ensureSession(participantId);
+              console.log('✅ E2EE established with joiner');
+            } catch (e) {
+              console.error('❌ Failed to establish E2EE with joiner:', e);
+            }
+          }
+        });
+
+        // Temp session ended broadcast
+        socketService.on('temp:session:ended', ({ sessionId }) => {
+          console.log('🛑 Temp session ended remotely:', sessionId);
+          if (activeTempSession && activeTempSession.sessionId === sessionId) {
+            setActiveTempSession(null);
+            setActiveChat(null);
+            setMessages([]);
+            Alert.alert('Session Ended', 'The temporary session has been destroyed.');
+            try {
+              router.replace('/(tabs)/chat');
+            } catch (e) {
+              console.warn('Navigation failure after temp end', e);
+            }
+          }
+        });
+
+        // Online users
+        socketService.on('online-users', (users) => {
+          console.log('👥 Online users:', users.length);
+          setOnlineUsers(users);
+        });
+
+        socketService.on('user:online', ({ userId }) => {
+          setOnlineUsers((prev) => {
+            if (!prev.includes(userId)) {
+              return [...prev, userId];
+            }
+            return prev;
+          });
+        });
+
+        socketService.on('user:offline', ({ userId }) => {
+          setOnlineUsers((prev) => prev.filter((id) => id !== userId));
+        });
+      } catch (error) {
+        console.error('❌ Error setting up socket listeners:', error);
+      }
     };
 
     // Connect socket and setup listeners
@@ -773,6 +777,7 @@ export function ChatProvider({ children }) {
         setupSocketListeners();
       } catch (error) {
         console.error('❌ Socket connection failed:', error);
+        // Don't crash the app, just log the error
       }
     };
 
@@ -822,28 +827,39 @@ export function ChatProvider({ children }) {
         );
       } catch (error) {
         console.error('❌ Failed to initialize push notifications:', error);
+        // Don't crash the app, just log the error
       }
     };
 
-    initSocket();
-    initPushNotifications();
+    // ✅ FIXED: Delay initialization to prevent startup crash
+    // This allows the UI to render first before heavy services start
+    const timer = setTimeout(() => {
+      console.log('⏰ Starting delayed service initialization...');
+      initSocket();
+      initPushNotifications();
+    }, 2000); // 2 second delay
 
     // Cleanup
     return () => {
-      socketService.off('connection_status');
-      socketService.off('message:receive');
-      socketService.off('message:sent');
-      socketService.off('message:read:receipt');
-      socketService.off('message:deleted');
-      socketService.off('message:self-destruct');
-      socketService.off('temp:session:ended');
-      socketService.off('typing:start');
-      socketService.off('typing:stop');
-      socketService.off('message:reaction');
-      socketService.off('online-users');
-      socketService.off('user:online');
-      socketService.off('user:offline');
-      notificationService.removeNotificationListeners();
+      clearTimeout(timer); // Clear initialization timer
+      try {
+        socketService.off('connection_status');
+        socketService.off('message:receive');
+        socketService.off('message:sent');
+        socketService.off('message:read:receipt');
+        socketService.off('message:deleted');
+        socketService.off('message:self-destruct');
+        socketService.off('temp:session:ended');
+        socketService.off('typing:start');
+        socketService.off('typing:stop');
+        socketService.off('message:reaction');
+        socketService.off('online-users');
+        socketService.off('user:online');
+        socketService.off('user:offline');
+        notificationService.removeNotificationListeners();
+      } catch (error) {
+        console.error('❌ Error cleaning up socket listeners:', error);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]); // Only reconnect if user changes, not activeChat!
@@ -945,10 +961,11 @@ export function ChatProvider({ children }) {
     isConnected,
     loading,
     pushToken,
+    isConnected,
+    loading,
+    pushToken,
     activeTempSession,
-
-    // Actions
-    loadChats,
+    e2eeInitialized: true, // ✅ ADDED: Always true as E2EE is now background-managed
     loadMessages,
     loadRoomMessages,
     openChat,

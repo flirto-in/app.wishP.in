@@ -42,7 +42,8 @@ export const AuthProvider = ({ children }) => {
     return () => {
       socketService.off('force:logout', handleForceLogout);
     };
-  }, [checkStoredSession]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ... imports
 
