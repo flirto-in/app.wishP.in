@@ -9,10 +9,23 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api-whisp.onrender.com",
+        "EXPO_PUBLIC_SOCKET_URL": "https://api-whisp.onrender.com",
+        "EXPO_PUBLIC_DEV_MODE": "false"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api-whisp.onrender.com",
+        "EXPO_PUBLIC_SOCKET_URL": "https://api-whisp.onrender.com",
+        "EXPO_PUBLIC_DEV_MODE": "false"
+      }
     }
   },
   "submit": {

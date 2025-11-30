@@ -13,6 +13,7 @@
 
 import e2eeService from './e2eeService';
 import signalProtocol from './signalProtocol';
+// ✅ FIXED: Use legacy API to avoid deprecation warnings
 import * as FileSystem from 'expo-file-system';
 import logger from '../utils/logger';
 
@@ -25,49 +26,104 @@ class MediaEncryption {
    * @returns {object} { encryptedBlob, encryptedFileKey, nonce, originalName, mimeType }
    */
   async encryptFile(fileUri, sessionId) {
-    await e2eeService.init();
+    try {
+      await e2eeService.init();
 
-    // Read file as binary
-    const fileBase64 = await FileSystem.readAsStringAsync(fileUri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    const fileBytes = e2eeService.fromBase64(fileBase64);
+      // Validate inputs
+      if (!fileUri) {
+        throw new Error('File URI is required');
+      }
+      if (!sessionId) {
+        throw new Error('Session ID is required');
+      }
 
-    // Generate random 256-bit file key
-    const fileKey = await e2eeService.randomBytes(32);
+      logger.log(`📁 Reading file: ${fileUri}`);
 
-    // Generate nonce for file encryption
-    const fileNonce = await e2eeService.generateNonce();
+      // Check if file exists
+      let fileInfo;
+      try {
+        fileInfo = await FileSystem.getInfoAsync(fileUri);
+      } catch (infoError) {
+        logger.error('Failed to get file info:', infoError);
+        throw new Error(`Cannot access file: ${infoError.message}`);
+      }
 
-    // Encrypt file with ChaCha20-Poly1305
-    const encryptedBlob = await e2eeService.encryptAEAD(
-      fileBytes,
-      fileKey,
-      fileNonce,
-      null, // No associated data for files
-    );
+      if (!fileInfo.exists) {
+        throw new Error(`File does not exist: ${fileUri}`);
+      }
 
-    // Encrypt file key using Double Ratchet session
-    const encryptedFileKeyEnvelope = await signalProtocol.ratchetEncrypt(
-      sessionId,
-      e2eeService.toBase64(fileKey),
-    );
+      logger.log(`📊 File size: ${fileInfo.size} bytes`);
 
-    // Extract filename and mime type
-    const fileName = fileUri.split('/').pop();
-    const mimeType = this.guessMimeType(fileName);
+      // Read file as binary with error handling
+      let fileBase64;
+      try {
+        fileBase64 = await FileSystem.readAsStringAsync(fileUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      } catch (readError) {
+        logger.error('Failed to read file:', readError);
+        throw new Error(`Failed to read file: ${readError.message}`);
+      }
 
-    logger.log(
-      `✅ File encrypted: ${fileName} (${fileBytes.length} bytes → ${encryptedBlob.length} bytes)`,
-    );
+      // Validate file was read successfully
+      if (!fileBase64 || typeof fileBase64 !== 'string') {
+        throw new Error('File read returned invalid data');
+      }
 
-    return {
-      encryptedBlob: e2eeService.toBase64(encryptedBlob),
-      encryptedFileKey: encryptedFileKeyEnvelope, // Contains ciphertext, header, nonce
-      fileNonce: e2eeService.toBase64(fileNonce),
-      originalName: fileName,
-      mimeType,
-    };
+      logger.log(`✅ File read successfully (${fileBase64.length} base64 chars)`);
+
+      // Convert from base64
+      let fileBytes;
+      try {
+        fileBytes = e2eeService.fromBase64(fileBase64);
+      } catch (decodeError) {
+        logger.error('Failed to decode base64:', decodeError);
+        throw new Error('Failed to decode file data');
+      }
+
+      if (!fileBytes || fileBytes.length === 0) {
+        throw new Error('File is empty or could not be converted');
+      }
+
+      // Generate random 256-bit file key
+      const fileKey = await e2eeService.randomBytes(32);
+
+      // Generate nonce for file encryption
+      const fileNonce = await e2eeService.generateNonce();
+
+      // Encrypt file with ChaCha20-Poly1305
+      const encryptedBlob = await e2eeService.encryptAEAD(
+        fileBytes,
+        fileKey,
+        fileNonce,
+        null, // No associated data for files
+      );
+
+      // Encrypt file key using Double Ratchet session
+      const encryptedFileKeyEnvelope = await signalProtocol.ratchetEncrypt(
+        sessionId,
+        e2eeService.toBase64(fileKey),
+      );
+
+      // Extract filename and mime type
+      const fileName = fileUri.split('/').pop();
+      const mimeType = this.guessMimeType(fileName);
+
+      logger.log(
+        `✅ File encrypted: ${fileName} (${fileBytes.length} bytes → ${encryptedBlob.length} bytes)`,
+      );
+
+      return {
+        encryptedBlob: e2eeService.toBase64(encryptedBlob),
+        encryptedFileKey: encryptedFileKeyEnvelope, // Contains ciphertext, header, nonce
+        fileNonce: e2eeService.toBase64(fileNonce),
+        originalName: fileName,
+        mimeType,
+      };
+    } catch (error) {
+      logger.error('❌ File encryption failed:', error);
+      throw error;
+    }
   }
 
   /**

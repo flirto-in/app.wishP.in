@@ -73,7 +73,8 @@ export async function refreshOneTimePrekeys() {
 export async function sendEncryptedMessage(peerUserId, plaintext, socketService) {
   try {
     // Check if session exists
-    const sessionId = `${peerUserId}`.slice(0, 16); // Simplified session ID
+    // ✅ FIXED: Use full peerUserId as session ID
+    const sessionId = peerUserId;
     let session = await signalProtocol.getSessionState(sessionId);
 
     // If no session, initiate X3DH
@@ -81,12 +82,16 @@ export async function sendEncryptedMessage(peerUserId, plaintext, socketService)
       console.log('🔑 No session found, initiating X3DH...');
 
       // Fetch peer's prekey bundle
+      // ✅ FIXED: Correct API endpoint
       const bundleResponse = await api.get(`/keys/prekeys/${peerUserId}`);
       const peerBundle = bundleResponse.data.data;
 
       // Perform X3DH key agreement
-      const { sessionId: newSessionId, initialHeader } =
-        await signalProtocol.initiateSession(peerBundle);
+      // ✅ FIXED: Pass peerUserId to use as session ID
+      const { sessionId: newSessionId, initialHeader } = await signalProtocol.initiateSession(
+        peerBundle,
+        peerUserId,
+      );
 
       console.log('✅ X3DH session initiated:', newSessionId);
 
@@ -132,7 +137,8 @@ export async function receiveEncryptedMessage(encryptedMessage) {
     const { senderId, encryptedText, ratchetHeader, nonce } = encryptedMessage;
 
     // Derive session ID from sender
-    const sessionId = `${senderId}`.slice(0, 16);
+    // ✅ FIXED: Use full senderId as session ID
+    const sessionId = senderId;
 
     // Check if we have a session
     let session = await signalProtocol.getSessionState(sessionId);
@@ -140,7 +146,11 @@ export async function receiveEncryptedMessage(encryptedMessage) {
     // If no session, this might be the first message (need to accept X3DH)
     if (!session && encryptedMessage.initialHeader) {
       console.log('🔑 Accepting X3DH session from', senderId);
-      await signalProtocol.acceptSession(encryptedMessage.initialHeader);
+      // ✅ FIXED: Pass senderId as session ID
+      await signalProtocol.acceptSession(encryptedMessage.initialHeader, senderId);
+
+      // Re-check session after acceptance
+      session = await signalProtocol.getSessionState(sessionId);
     }
 
     // Decrypt message

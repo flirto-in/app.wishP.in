@@ -21,13 +21,14 @@ export const userService = {
    * @api /users/updateUserProfile    ✅
    * @method PATCH
    * @accept auth token from headers
-   * @accept body: {description}
+   * @accept body: { about, avatarId }
    * @return updated user profile data
    */
-  updateProfile: async (description) => {
+  updateProfile: async ({ about, avatarId }) => {
     try {
       const response = await api.patch('/users/updateUserProfile', {
-        description,
+        about,
+        avatarId,
       });
       return response.data;
     } catch (error) {

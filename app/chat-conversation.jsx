@@ -21,6 +21,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { ChatContext } from '../src/context/ChatContext';
 import { AuthContext } from '../src/context/AuthContext';
 
+// Predefined Avatars (Ionicons names)
+const AVATARS = [
+  { id: 1, icon: 'person' },
+  { id: 2, icon: 'happy' },
+  { id: 3, icon: 'skull' },
+  { id: 4, icon: 'rocket' },
+  { id: 5, icon: 'planet' },
+  { id: 6, icon: 'leaf' },
+  { id: 7, icon: 'paw' },
+  { id: 8, icon: 'game-controller' },
+  { id: 9, icon: 'musical-notes' },
+  { id: 10, icon: 'glasses' },
+];
+
 export default function ChatConversationScreen() {
   const router = useRouter();
   const { userId, userName, roomId, isPublicRoom } = useLocalSearchParams();
@@ -46,7 +60,6 @@ export default function ChatConversationScreen() {
 
   const [messageText, setMessageText] = useState('');
   const [typingTimeout, setTypingTimeout] = useState(null);
-  // Removed self-destruct feature for cleaner modern UI
   const [inputHeight, setInputHeight] = useState(40);
   const insets = useSafeAreaInsets();
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -206,10 +219,7 @@ export default function ChatConversationScreen() {
 
   const handlePickFile = async () => {
     try {
-      if (activeChat?.isTemp) {
-        Alert.alert('Disabled', 'File uploads are hidden in temp sessions.');
-        return;
-      }
+      // ✅ ENABLED: Media uploads now allowed in temp chats (E2EE encrypted)
       const result = await DocumentPicker.getDocumentAsync({ multiple: false });
       if (result.canceled) return;
       const file = result.assets?.[0];
@@ -279,7 +289,7 @@ export default function ChatConversationScreen() {
       if (typeof encryptedFileKey === 'string') {
         try {
           encryptedFileKey = JSON.parse(encryptedFileKey);
-        } catch (e) {
+        } catch (_e) {
           // Already an object
         }
       }
@@ -482,12 +492,14 @@ export default function ChatConversationScreen() {
 
             {isMyMessage && !isDeleted && (
               <View className="ml-2">
-                {message.read ? (
-                  <Ionicons name="checkmark-done" size={14} color="#DBEAFE" />
+                {message.status === 'pending' ? (
+                  <Ionicons name="time-outline" size={16} color="#9CA3AF" /> // ⏱ Pending (Gray)
+                ) : message.read ? (
+                  <Ionicons name="checkmark-done" size={16} color="#3B82F6" /> // ✓✓ Read (Blue)
                 ) : message.deliveryStatus === 'delivered' ? (
-                  <Ionicons name="checkmark-done" size={14} color="#DBEAFE" />
+                  <Ionicons name="checkmark-done" size={16} color="#9CA3AF" /> // ✓✓ Delivered (Gray)
                 ) : (
-                  <Ionicons name="checkmark" size={14} color="#DBEAFE" />
+                  <Ionicons name="checkmark" size={16} color="#9CA3AF" /> // ✓ Sent (Gray)
                 )}
               </View>
             )}
@@ -521,14 +533,16 @@ export default function ChatConversationScreen() {
               <Ionicons name="chevron-back" size={24} color="#3B82F6" />
             </TouchableOpacity>
 
-            <View className="w-10 h-10 rounded-full bg-blue-500 justify-center items-center mr-3">
-              <Text className="text-white font-bold text-lg">
-                {isRoomMode ? (
-                  <Ionicons name="home" size={20} color="#fff" />
-                ) : (
-                  userName?.charAt(0)?.toUpperCase() || '?'
-                )}
-              </Text>
+            <View className="w-10 h-10 rounded-full bg-dark-surface border border-dark-border justify-center items-center mr-3">
+              {isRoomMode ? (
+                <Ionicons name="people" size={20} color="#fff" />
+              ) : (
+                <Ionicons
+                  name={AVATARS.find((a) => a.id === activeChat?.avatarId)?.icon || 'person'}
+                  size={20}
+                  color="#fff"
+                />
+              )}
             </View>
 
             <View className="flex-1">
@@ -604,15 +618,6 @@ export default function ChatConversationScreen() {
         )}
       </View>
 
-      {/* Temp session banner */}
-      {activeChat?.isTemp && (
-        <View className="mx-3 mt-2 mb-1 bg-pink-600/10 border border-pink-700/40 rounded-xl p-2">
-          <Text className="text-pink-400 text-xs font-medium">
-            Ephemeral session: media & attachments disabled.
-          </Text>
-        </View>
-      )}
-
       {/* Modern Input Bar (dynamic bottom offset) */}
       <View
         style={{
@@ -622,22 +627,13 @@ export default function ChatConversationScreen() {
       >
         <View className="mx-3 bg-dark-surface/95 rounded-3xl px-4 pt-3 pb-3 shadow-lg border border-dark-border">
           <View className="flex-row items-end">
-            {/* Leading actions (hidden in temp session) */}
-            {!activeChat?.isTemp && (
-              <>
-                <TouchableOpacity className="mr-3" onPress={handlePickFile} activeOpacity={0.7}>
-                  <Ionicons name="add-circle-outline" size={26} color="#3B82F6" />
-                </TouchableOpacity>
-                <TouchableOpacity className="mr-3" onPress={() => {}} activeOpacity={0.7}>
-                  <Ionicons name="happy-outline" size={26} color="#3B82F6" />
-                </TouchableOpacity>
-              </>
-            )}
-            {activeChat?.isTemp && (
-              <View className="mr-3 px-2 py-1 rounded-lg bg-pink-600/20 border border-pink-700/40">
-                <Text className="text-[10px] text-pink-300">No media</Text>
-              </View>
-            )}
+            {/* Leading actions (enabled for all chats now) */}
+            <TouchableOpacity className="mr-3" onPress={handlePickFile} activeOpacity={0.7}>
+              <Ionicons name="add-circle-outline" size={26} color="#3B82F6" />
+            </TouchableOpacity>
+            <TouchableOpacity className="mr-3" onPress={() => {}} activeOpacity={0.7}>
+              <Ionicons name="happy-outline" size={26} color="#3B82F6" />
+            </TouchableOpacity>
 
             {/* Input */}
             <View className="flex-1 mr-3">

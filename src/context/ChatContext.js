@@ -2,14 +2,16 @@ import { useRouter } from 'expo-router';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import { chatService } from '../services/chatService';
+import { userService } from '../services/user.service';
 import notificationService from '../services/notificationService';
 import { socketService } from '../services/socket';
-import { userService } from '../services/user.service';
 import {
-  initializeE2EE,
-  sendEncryptedMessage,
-  receiveEncryptedMessage,
-} from '../services/e2eeExample';
+  // initializeE2EE, // Unused
+  // sendEncryptedMessage, // Unused
+  receiveEncryptedMessage, // Keep if used, otherwise remove
+} from '../services/e2eeManager';
+import messageQueue from '../services/messageQueue'; // ✅ NEW: Message queue for background sending
+
 import { AuthContext } from './AuthContext';
 
 export const ChatContext = createContext();
@@ -33,44 +35,14 @@ export function ChatProvider({ children }) {
   const [pushToken, setPushToken] = useState(null);
   const [mutedChats, setMutedChats] = useState(new Set()); // Track muted chat IDs
 
-  // E2EE is ALWAYS enabled - no toggle
-  const e2eeEnabled = true;
-  const [e2eeInitialized, setE2eeInitialized] = useState(false);
-
   // Ref to store current activeChat to avoid stale closures
   const activeChatRef = useRef(null); // Update ref whenever activeChat changes
   useEffect(() => {
     activeChatRef.current = activeChat;
   }, [activeChat]);
 
-  /**
-   * Initialize E2EE - Always enabled, auto-init on login
-   */
-  useEffect(() => {
-    const initE2EE = async () => {
-      try {
-        // E2EE is ALWAYS enabled - initialize for all users
-        if (user && !e2eeInitialized) {
-          console.log('🔐 Auto-initializing E2EE for user:', user._id);
-          await initializeE2EE();
-          setE2eeInitialized(true);
-          console.log('✅ E2EE initialized successfully - encryption ALWAYS ON');
-        }
-      } catch (error) {
-        console.error('❌ E2EE initialization failed:', error);
-        // Retry initialization after 5 seconds
-        setTimeout(() => {
-          if (user && !e2eeInitialized) {
-            initE2EE();
-          }
-        }, 5000);
-      }
-    };
-
-    if (user) {
-      initE2EE();
-    }
-  }, [user, e2eeInitialized]);
+  // Note: E2EE initialization is now handled in AuthContext (background)
+  // and on-demand via signalProtocol.ensureSession()
 
   /**
    * Load all chats
@@ -191,6 +163,26 @@ export function ChatProvider({ children }) {
         isRoom: false,
       });
 
+      // ✅ FIXED: Pre-establish E2EE session (WhatsApp approach)
+      // Session setup happens in background, doesn't block UI
+      console.log('🔐 Pre-establishing E2EE session in background...');
+      const signalProtocol = (await import('../services/signalProtocol')).default;
+
+      // ✅ NEW: Verify identity (Check for Reinstall/Key Rotation)
+      // If identity changed, this will reset the session so ensureSession creates a new one
+      signalProtocol.verifyIdentity(userId).then(() => {
+        // Non-blocking session setup
+        signalProtocol
+          .ensureSession(userId)
+          .then(() => {
+            console.log('✅ E2EE session ready for instant messaging');
+          })
+          .catch((error) => {
+            console.error('❌ E2EE session setup failed:', error);
+            // Strict E2EE: Messages will fail to send if this doesn't succeed
+          });
+      });
+
       // Load messages for this chat
       await loadMessages(userId);
     },
@@ -244,16 +236,20 @@ export function ChatProvider({ children }) {
         isTemp: true,
       });
 
-      // ✅ FIX: Initialize E2EE session for temp chat
-      try {
-        console.log('🔐 Initializing E2EE session for temp chat with:', otherParticipantId);
-        const signalProtocol = (await import('../services/signalProtocol')).default;
-        await signalProtocol.initSession(otherParticipantId);
-        console.log('✅ E2EE session initialized for temp chat');
-      } catch (error) {
-        console.warn('⚠️ E2EE session may already exist or failed to initialize:', error.message);
-        // Continue anyway - session might already exist
-      }
+      // ✅ FIXED: Background E2EE setup (non-blocking, WhatsApp approach)
+      console.log('🔐 Starting E2EE setup for temp chat in background...');
+      const signalProtocol = (await import('../services/signalProtocol')).default;
+
+      // Background setup - doesn't block UI
+      signalProtocol
+        .ensureSession(otherParticipantId)
+        .then(() => {
+          console.log('✅ Temp chat E2EE ready');
+        })
+        .catch((error) => {
+          console.error('❌ E2EE setup failed:', error.message);
+          // Strict E2EE: Messages will fail to send if this doesn't succeed
+        });
 
       // Load messages for this temp session
       try {
@@ -291,7 +287,8 @@ export function ChatProvider({ children }) {
   }, [activeTempSession]);
 
   /**
-   * Send a message
+   * Send message (optimistic UI - appears instantly, sends in background)
+   * WhatsApp-like: message shows immediately with clock icon, updates when sent
    */
   const sendMessage = useCallback(
     async (text, selfDestruct = null) => {
@@ -305,44 +302,48 @@ export function ChatProvider({ children }) {
         return;
       }
 
-      if (!socketService.isSocketConnected()) {
-        console.warn('⚠️ Cannot send message: Socket not connected');
-        console.log('🔍 Socket status:', {
-          isConnected,
-          hasSocket: !!socketService.socket,
-          socketConnected: socketService.socket?.connected,
-        });
-        return;
-      }
+      // ✅ OPTIMISTIC UI: Create temp message (shows instantly)
+      const tempMessage = {
+        _id: `temp_${Date.now()}_${Math.random()}`,
+        senderId: user._id,
+        receiverId: activeChat._id,
+        text: text.trim(),
+        status: 'pending', // ⏱ Clock icon in UI
+        createdAt: new Date(),
+        tempSessionId: activeChat.tempSessionId,
+        isTemp: activeChat.isTemp,
+      };
 
-      try {
-        // E2EE is ALWAYS enabled for direct messages
-        if (!activeChat.isRoom && e2eeInitialized) {
-          console.log('🔐 Encrypting message with E2EE (always-on)...');
-          await sendEncryptedMessage(activeChat._id, text.trim(), socketService);
-          console.log('✅ Encrypted message sent');
-        } else if (!activeChat.isRoom && !e2eeInitialized) {
-          // E2EE not ready yet - queue or show error
-          console.warn('⚠️ E2EE not initialized yet, retrying...');
-          Alert.alert('Please wait', 'Encryption is still initializing. Try again in a moment.');
-          return;
-        } else {
-          // Send plaintext message
-          if (activeChat.isRoom) {
-            console.log('📤 Sending room message to:', activeChat.roomId, 'Text:', text.trim());
-            socketService.sendMessage(null, text.trim(), 'text', activeChat.roomId, selfDestruct);
-          } else {
-            console.log('📤 Sending message to:', activeChat._id, 'Text:', text.trim());
-            socketService.sendMessage(activeChat._id, text.trim(), 'text', null, selfDestruct);
+      // Add to UI immediately (like WhatsApp)
+      setMessages((prev) => [...prev, tempMessage]);
+
+      // ✅ Queue for background E2EE sending
+      if (!activeChat.isRoom) {
+        // Direct message - use E2EE queue
+        console.log('📥 Queuing message for E2EE encryption...');
+        messageQueue.enqueue(tempMessage);
+
+        // Listen for status updates
+        messageQueue.onStatusChange(tempMessage._id, (status) => {
+          if (status === 'sent') {
+            // Update message status to sent
+            setMessages((prev) =>
+              prev.map((msg) => (msg._id === tempMessage._id ? { ...msg, status: 'sent' } : msg)),
+            );
+          } else if (status === 'failed') {
+            // Show retry option
+            setMessages((prev) =>
+              prev.map((msg) => (msg._id === tempMessage._id ? { ...msg, status: 'failed' } : msg)),
+            );
           }
-          console.log('✅ Message sent via socket');
-        }
-      } catch (error) {
-        console.error('❌ Failed to send message:', error);
-        Alert.alert('Error', 'Failed to send message');
+        });
+      } else {
+        // Room message - send directly (no E2EE for rooms)
+        console.log('📤 Sending room message to:', activeChat.roomId);
+        socketService.sendMessage(null, text.trim(), 'text', activeChat.roomId, selfDestruct);
       }
     },
-    [activeChat, isConnected, e2eeInitialized],
+    [activeChat, user],
   );
 
   /**
@@ -443,6 +444,12 @@ export function ChatProvider({ children }) {
         if (connected) {
           console.log('✅ Socket connected, loading chats...');
           loadChats();
+          // ✅ FIXED: Retry pending messages after reconnection
+          const pendingCount = messageQueue.getPendingCount();
+          if (pendingCount > 0) {
+            console.log(`📤 Retrying ${pendingCount} pending messages after reconnection...`);
+            messageQueue.retryAll();
+          }
         }
       });
 
@@ -563,7 +570,7 @@ export function ChatProvider({ children }) {
 
       // Message sent confirmation
       socketService.on('message:sent', (message) => {
-        console.log('✅ Message sent confirmation:', message);
+        console.log('✅ Message sent confirmation:', message._id);
 
         const currentActiveChat = activeChatRef.current;
 
@@ -589,7 +596,21 @@ export function ChatProvider({ children }) {
         // Add to messages if in active chat (prevent duplicates)
         if (isForActiveChat) {
           setMessages((prev) => {
-            // Check if message already exists
+            // ✅ FIXED: Check for temp message replacement using clientMessageId
+            if (message.clientMessageId) {
+              const tempMatch = prev.find((msg) => msg._id === message.clientMessageId);
+              if (tempMatch) {
+                console.log(
+                  '🔄 Replacing temp message',
+                  message.clientMessageId,
+                  'with real ID',
+                  message._id,
+                );
+                return prev.map((msg) => (msg._id === message.clientMessageId ? message : msg));
+              }
+            }
+
+            // Check if message already exists (by real ID)
             const messageExists = prev.some((msg) => msg._id === message._id);
             if (messageExists) {
               return prev;
@@ -679,6 +700,32 @@ export function ChatProvider({ children }) {
         console.log('🗑️ Message self-destructed:', messageId);
 
         setMessages((prev) => prev.filter((msg) => msg._id !== messageId));
+      });
+
+      // Temp session joined (Creator notification)
+      socketService.on('temp:session:joined', async ({ sessionId, participantId, alias }) => {
+        console.log('👤 User joined temp session:', alias);
+        if (activeTempSession && activeTempSession.sessionId === sessionId) {
+          // Update active chat to enable messaging
+          setActiveChat((prev) => ({
+            ...prev,
+            _id: participantId, // Set chat partner ID
+            waiting: false, // Remove waiting state
+          }));
+
+          Alert.alert('User Joined', `${alias} has joined the chat!`);
+
+          // Establish E2EE
+          console.log('🔐 Establishing E2EE with new participant...');
+          try {
+            const signalProtocol = (await import('../services/signalProtocol')).default;
+            await signalProtocol.verifyIdentity(participantId);
+            await signalProtocol.ensureSession(participantId);
+            console.log('✅ E2EE established with joiner');
+          } catch (e) {
+            console.error('❌ Failed to establish E2EE with joiner:', e);
+          }
+        }
       });
 
       // Temp session ended broadcast
@@ -899,8 +946,6 @@ export function ChatProvider({ children }) {
     loading,
     pushToken,
     activeTempSession,
-    e2eeEnabled,
-    e2eeInitialized,
 
     // Actions
     loadChats,
@@ -931,28 +976,33 @@ export function ChatProvider({ children }) {
       }
       try {
         const isRoom = !!activeChat.isRoom;
+        const isTemp = !!activeChat.isTemp;
 
         // Import mediaEncryption dynamically
         const mediaEncryption = (await import('../services/mediaEncryption')).default;
-        const signalProtocol = (await import('../services/signalProtocol')).default;
 
-        // Encrypt file for E2EE transfers (not for rooms/temp sessions)
+        // ✅ FIXED: Always encrypt for direct messages (uses ensureSession  like queue)
         let encryptedData = null;
-        if (!isRoom && e2eeInitialized) {
+        if (!isRoom) {
           console.log('🔐 Encrypting file before upload...', fileInfo.name);
           try {
-            // Get session ID for this chat
-            const sessionId = activeChat._id;
+            // Import signalProtocol
+            const signalProtocol = (await import('../services/signalProtocol')).default;
+
+            // Ensure E2EE session ready (like message queue does)
+            console.log('🔑 Ensuring E2EE session for file encryption...');
+            await signalProtocol.ensureSession(activeChat._id);
 
             // Encrypt the file
-            encryptedData = await mediaEncryption.encryptFile(fileInfo.uri, sessionId);
+            encryptedData = await mediaEncryption.encryptFile(fileInfo.uri, activeChat._id);
             console.log('✅ File encrypted successfully');
           } catch (error) {
             console.error('❌ File encryption failed:', error);
             throw new Error('File encryption failed: ' + error.message);
           }
-        } else if (isRoom) {
-          console.log('ℹ️ Room/temp chat - file upload disabled for E2EE compliance');
+        } else if (isRoom && !isTemp) {
+          // Only block for actual rooms, NOT temp chats
+          console.log('ℹ️ Room chat - file upload disabled for E2EE compliance');
           throw new Error('File uploads disabled in rooms for E2EE compliance');
         }
 
@@ -963,9 +1013,10 @@ export function ChatProvider({ children }) {
           mimeType: fileInfo.mimeType,
           receiverId: !isRoom ? activeChat._id : undefined,
           roomId: isRoom ? activeChat.roomId : undefined,
-          hideInTemp: !!activeChat.isTemp,
+          tempSessionId: isTemp ? activeChat.tempSessionId : undefined, // ✅ ADDED
+          hideInTemp: isTemp,
           // E2EE encryption data
-          encryptedData: encryptedData, // Will be null for rooms
+          encryptedData: encryptedData, // Encrypted for temp chats too
         });
 
         if (message && !message.hidden) {

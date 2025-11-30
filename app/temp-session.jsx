@@ -234,8 +234,7 @@ export default function TempSessionScreen() {
             <Text className="text-red-400 font-bold text-lg mb-2">Ephemeral 1-to-1 Session</Text>
             <Text className="text-gray-300 text-sm mb-4">
               • End-to-end encrypted (like normal chats){'\n'}• Only 2 people can join{'\n'}• All
-              messages permanently deleted when session ends{'\n'}• Media sharing disabled for
-              privacy
+              messages permanently deleted when session ends{'\n'}• Media is encrypted & secure
             </Text>
             <View className="flex-row mt-2">
               <TouchableOpacity

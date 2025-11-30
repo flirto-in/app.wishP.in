@@ -25,6 +25,10 @@ const Buffer = BufferPolyfill;
 class SignalProtocol {
   constructor() {
     this.initialized = false;
+    // Session caching for fast lookup
+    this.sessionCache = new Map();
+    // Track pending session setups to avoid duplicates
+    this.pendingSetup = new Map();
   }
 
   async init() {
@@ -131,9 +135,10 @@ class SignalProtocol {
    * 4. Initialize sender ratchet state
    *
    * @param {object} bobBundle - Bob's prekey bundle from server
+   * @param {string} peerUserId - Optional explicit session ID (user ID)
    * @returns {object} Session state + initial message header
    */
-  async initiateSession(bobBundle) {
+  async initiateSession(bobBundle, peerUserId = null) {
     await this.init();
 
     // Verify Bob's prekey signature
@@ -191,7 +196,8 @@ class SignalProtocol {
     const sendingChainKey = ratchetKeys.slice(32, 64);
 
     // Store session state
-    const sessionId = `${bobBundle.identityKey.slice(0, 16)}`; // Use peer identity as session ID
+    // ✅ FIXED: Use peerUserId if provided, otherwise fallback to identity key slice
+    const sessionId = peerUserId || `${bobBundle.identityKey.slice(0, 16)}`;
     const sessionState = {
       sessionId,
       peerIdentityKey: bobBundle.identityKey,
@@ -222,48 +228,128 @@ class SignalProtocol {
     };
   }
 
+  // ============= SESSION MANAGEMENT =============
+
+  /**
+   * Ensure E2EE session exists (used by message queue)
+   * Uses caching to avoid redundant initialization
+   * Handles concurrent requests gracefully
+   *
+   * @param {string} peerUserId - MongoDB user ID
+   * @returns {Promise<string>} Session ID
+   */
+  async ensureSession(peerUserId) {
+    // Check cache first
+    if (this.sessionCache.has(peerUserId)) {
+      console.log(`✅ Using cached session for ${peerUserId}`);
+      return this.sessionCache.get(peerUserId);
+    }
+
+    // Check if already setting up
+    if (this.pendingSetup.has(peerUserId)) {
+      console.log(`⏳ Waiting for pending session setup: ${peerUserId}`);
+      return await this.pendingSetup.get(peerUserId);
+    }
+
+    // Start new setup
+    console.log(`🔑 Starting E2EE session setup for ${peerUserId}`);
+    const setupPromise = this.initSession(peerUserId);
+    this.pendingSetup.set(peerUserId, setupPromise);
+
+    try {
+      const sessionId = await setupPromise;
+      this.sessionCache.set(peerUserId, sessionId);
+      console.log(`✅ E2EE session ready: ${peerUserId}`);
+      return sessionId;
+    } catch (error) {
+      console.error(`❌ E2EE session setup failed: ${error.message}`);
+      throw error;
+    } finally {
+      this.pendingSetup.delete(peerUserId);
+    }
+  }
+
+  /**
+   * Verify if remote user's identity key has changed (e.g. reinstall)
+   * If changed, invalidates local session to force re-keying
+   */
+  async verifyIdentity(peerUserId) {
+    try {
+      const sessionState = await this.getSessionState(peerUserId);
+      if (!sessionState) return true; // No session, nothing to verify
+
+      // Fetch current bundle to check identity key
+      const keyService = (await import('./keyService')).keyService;
+      const response = await keyService.fetchPrekeyBundle(peerUserId);
+      const bundle = response.data;
+
+      if (!bundle || !bundle.identityKey) return true;
+
+      if (bundle.identityKey !== sessionState.peerIdentityKey) {
+        console.warn(
+          `⚠️ Identity key changed for ${peerUserId} (Reinstall detected). Resetting session.`,
+        );
+        await this.deleteSession(peerUserId);
+        this.sessionCache.delete(peerUserId);
+        return false; // Identity changed
+      }
+
+      return true; // Identity verified
+    } catch (error) {
+      console.warn('Failed to verify identity:', error);
+      return true; // Assume valid on error to prevent blocking
+    }
+  }
+
   /**
    * High-level session initialization (fetches bundle and initiates session)
    * This is the wrapper that ChatContext should call
-   * 
+   *
    * @param {string} peerUserId - MongoDB user ID of the peer
    * @returns {string} Session ID (same as peerUserId for easy lookup)
    */
   async initSession(peerUserId) {
     await this.init();
 
-    console.log(`🔑 No session found, initiating X3DH...`);
-
-    // Import API dynamically to avoid circular dependency
-    const api = (await import('./api')).default;
-
     try {
+      console.log(`🔑 Initiating E2EE session with user: ${peerUserId}`);
+
+      // Check if session already exists (avoid redundant initialization)
+      const existingSession = await this.getSessionState(peerUserId);
+      if (existingSession) {
+        console.log(`✅ E2EE session already exists for: ${peerUserId}`);
+        return peerUserId;
+      }
+
+      console.log(`🔑 No session found, initiating X3DH...`);
+
       // Fetch peer's prekey bundle from server
-      const response = await api.get(`/e2ee/prekey-bundle/${peerUserId}`);
-      const bundle = response.data?.data?.bundle;
+      const keyService = (await import('./keyService')).keyService;
+      let response;
+      try {
+        response = await keyService.fetchPrekeyBundle(peerUserId);
+      } catch (apiError) {
+        console.error('Failed to fetch prekey bundle:', apiError);
+        throw new Error(
+          `Cannot establish encrypted session: ${apiError.message || 'Network error'}`,
+        );
+      }
+
+      const bundle = response.data;
 
       if (!bundle) {
-        throw new Error('No prekey bundle available for user');
+        throw new Error(
+          'No prekey bundle available - user may not have registered encryption keys',
+        );
       }
 
       // Initiate X3DH session
-      const { sessionId: tempSessionId, initialHeader } = await this.initiateSession(bundle);
+      // ✅ FIXED: Pass peerUserId to use as session ID
+      const { sessionId } = await this.initiateSession(bundle, peerUserId);
 
-      // ✅ FIX: Store session with MongoDB user ID (not identity key)
-      // This allows lookup by `activeChat._id`
-      const actualSessionId = peerUserId;
-      const tempState = await this.getSessionState(tempSessionId);
+      console.log(`✅ X3DH session initiated: ${sessionId}`);
 
-      if (tempState) {
-        // Re-save with the correct session ID (MongoDB user ID)
-        await this.saveSessionState(actualSessionId, tempState);
-        // Delete the temp session
-        await this.deleteSession(tempSessionId);
-      }
-
-      console.log(`✅ X3DH session initiated: ${actualSessionId}`);
-
-      return actualSessionId;
+      return sessionId;
     } catch (error) {
       console.error(`❌ Failed to init session with ${peerUserId}:`, error.message);
       throw error;
@@ -274,8 +360,10 @@ class SignalProtocol {
 
   /**
    * Accept X3DH session as responder (Bob receiving first message from Alice)
+   * @param {object} aliceHeader - Initial header from Alice's first message
+   * @param {string} peerUserId - Optional explicit session ID (Alice's user ID)
    */
-  async acceptSession(aliceHeader) {
+  async acceptSession(aliceHeader, peerUserId = null) {
     await this.init();
 
     const bobIdentityPrivate = await e2eeService.getPrivateKey('identity_private');
@@ -331,7 +419,8 @@ class SignalProtocol {
     const receivingChainKey = ratchetKeys.slice(32, 64);
 
     // Initialize receiver ratchet (will generate sender ratchet on first reply)
-    const sessionId = `${aliceHeader.identityKey.slice(0, 16)}`;
+    // ✅ FIXED: Use peerUserId if provided, otherwise fallback to identity key slice
+    const sessionId = peerUserId || `${aliceHeader.identityKey.slice(0, 16)}`;
     const sessionState = {
       sessionId,
       peerIdentityKey: aliceHeader.identityKey,
@@ -402,7 +491,7 @@ class SignalProtocol {
     const messageKey = await e2eeService.hkdf(
       chainKey,
       'MessageKey',
-      `${state.sendingChainLength}`,
+      `${state.sendingChainLength} `,
       32,
     );
 
@@ -414,7 +503,7 @@ class SignalProtocol {
     const nonce = await e2eeService.generateNonce();
 
     // Associated data: session ID + counter (prevents reordering attacks)
-    const associatedData = Buffer.from(`${sessionId}:${state.sendingChainLength}`);
+    const associatedData = Buffer.from(`${sessionId}:${state.sendingChainLength} `);
 
     // Encrypt with AEAD
     const ciphertext = await e2eeService.encryptAEAD(plaintext, messageKey, nonce, associatedData);
@@ -464,14 +553,14 @@ class SignalProtocol {
       // Store skipped message keys
       for (let i = state.receivingChainLength; i < header.messageCounter; i++) {
         const skippedKey = await this.deriveMessageKey(state.receivingChainKey, i);
-        state.skippedMessageKeys[`${header.senderRatchetKey}:${i}`] =
+        state.skippedMessageKeys[`${header.senderRatchetKey}:${i} `] =
           e2eeService.toBase64(skippedKey);
       }
     }
 
     // Derive message key
     let messageKey;
-    const skipKeyId = `${header.senderRatchetKey}:${header.messageCounter}`;
+    const skipKeyId = `${header.senderRatchetKey}:${header.messageCounter} `;
 
     if (state.skippedMessageKeys[skipKeyId]) {
       // Use stored skipped key
@@ -489,7 +578,7 @@ class SignalProtocol {
     }
 
     // Decrypt with AEAD
-    const associatedData = Buffer.from(`${sessionId}:${header.messageCounter}`);
+    const associatedData = Buffer.from(`${sessionId}:${header.messageCounter} `);
     const plaintextBytes = await e2eeService.decryptAEAD(
       e2eeService.fromBase64(ciphertext),
       messageKey,
@@ -545,22 +634,22 @@ class SignalProtocol {
     }
 
     // Derive message key
-    return await e2eeService.hkdf(chainKey, 'MessageKey', `${index}`, 32);
+    return await e2eeService.hkdf(chainKey, 'MessageKey', `${index} `, 32);
   }
 
   // ============= SESSION STORAGE =============
 
   async saveSessionState(sessionId, state) {
-    await AsyncStorage.setItem(`session_${sessionId}`, JSON.stringify(state));
+    await AsyncStorage.setItem(`session_${sessionId} `, JSON.stringify(state));
   }
 
   async getSessionState(sessionId) {
-    const stateJson = await AsyncStorage.getItem(`session_${sessionId}`);
+    const stateJson = await AsyncStorage.getItem(`session_${sessionId} `);
     return stateJson ? JSON.parse(stateJson) : null;
   }
 
   async deleteSession(sessionId) {
-    await AsyncStorage.removeItem(`session_${sessionId}`);
+    await AsyncStorage.removeItem(`session_${sessionId} `);
   }
 }
 

@@ -2,7 +2,9 @@ import { createContext, useCallback, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 import { authService } from '../services/authService';
 import { userService } from '../services/user.service';
+import { keyService } from '../services/keyService';
 import { socketService } from '../services/socket';
+import signalProtocol from '../services/signalProtocol'; // ✅ NEW: For background key generation
 
 export const AuthContext = createContext();
 
@@ -40,9 +42,28 @@ export const AuthProvider = ({ children }) => {
     return () => {
       socketService.off('force:logout', handleForceLogout);
     };
-  }, []);
+  }, [checkStoredSession]);
 
-  const checkStoredSession = async () => {
+  // ... imports
+
+  // ✅ NEW: Generate E2EE keys in background after login
+  const generateKeysInBackground = async () => {
+    try {
+      console.log('🔑 Checking/Generating E2EE keys in background...');
+      // This will check if keys exist, if not generate and upload them
+      const bundle = await signalProtocol.generatePrekeyBundle();
+
+      if (bundle) {
+        console.log('📤 Uploading E2EE keys to server...');
+        await keyService.uploadPrekeyBundle(bundle);
+        console.log('✅ E2EE keys uploaded successfully');
+      }
+    } catch (error) {
+      console.warn('⚠️ Background key generation/upload failed:', error);
+    }
+  };
+
+  const checkStoredSession = useCallback(async () => {
     try {
       console.log('🔍 Checking stored session...');
       const userData = await authService.checkAuth();
@@ -50,6 +71,8 @@ export const AuthProvider = ({ children }) => {
       if (userData) {
         console.log('✅ Session restored for user:', userData.U_Id);
         setUser(userData);
+        // Trigger background key generation
+        generateKeysInBackground();
       } else {
         console.log('❌ No valid session found');
       }
@@ -59,7 +82,7 @@ export const AuthProvider = ({ children }) => {
       setIsLoading(false);
       console.log('✅ Auth check complete');
     }
-  };
+  }, []);
 
   const sendOTP = async (phoneNumber) => {
     try {
@@ -84,6 +107,8 @@ export const AuthProvider = ({ children }) => {
       // Your API returns: { success: true, data: { user: {...}, accessToken: "..." } }
       if (response.success && response.data?.user) {
         setUser(response.data.user);
+        // Trigger background key generation
+        generateKeysInBackground();
         return { success: true, user: response.data.user };
       } else {
         return {
@@ -130,9 +155,9 @@ export const AuthProvider = ({ children }) => {
     }
   }, []); // Empty deps - this function doesn't depend on any external values
 
-  const updateUserProfile = useCallback(async (description) => {
+  const updateUserProfile = useCallback(async ({ about, avatarId }) => {
     try {
-      const response = await userService.updateProfile(description);
+      const response = await userService.updateProfile({ about, avatarId });
       console.log('📱 Update profile response:', response);
 
       if (response.success && response.data?.user) {
